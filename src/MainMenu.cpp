@@ -8,6 +8,7 @@
 #include "AnmManager.hpp"
 #include "Filesystem.hpp"
 #include "GameErrorContext.hpp"
+#include "ChainPriorities.hpp"
 #include "GameManager.hpp"
 #include "ReplayData.hpp"
 #include "SoundPlayer.hpp"
@@ -24,22 +25,6 @@
 #define COLOR_RED 0xffff0000
 // TODO: find a better name for this color
 #define COLOR_START_MENU_ITEM_INACTIVE 0x80300000
-
-enum Keys
-{
-    KEY_SHOOT = 0x0001,
-    KEY_BOMB = 0x0002,
-    KEY_FOCUS = 0x0004,
-    KEY_MENU = 0x0008,
-    KEY_UP = 0x0010,
-    KEY_DOWN = 0x0020,
-    KEY_LEFT = 0x0040,
-    KEY_RIGHT = 0x0080,
-    KEY_SKIP = 0x0100,
-    KEY_Q = 0x0200,
-    KEY_S = 0x0400,
-    KEY_ENTER = 0x1000,
-};
 
 #pragma optimize("s", on)
 #pragma var_order(time, i, vector3Ptr)
@@ -166,7 +151,7 @@ ZunResult MainMenu::DrawStartMenu(void)
     }
     if (this->stateTimer >= 0x14)
     {
-        if (WAS_PRESSED(KEY_ENTER | KEY_SHOOT))
+        if (WAS_PRESSED(TH_BUTTON_SELECTMENU))
         {
             switch (this->cursor)
             {
@@ -297,7 +282,7 @@ ZunResult MainMenu::DrawStartMenu(void)
                 break;
             }
         }
-        if (WAS_PRESSED(KEY_Q))
+        if (WAS_PRESSED(TH_BUTTON_Q))
         {
             this->gameState = STATE_QUIT;
             this->stateTimer = 0;
@@ -307,7 +292,7 @@ ZunResult MainMenu::DrawStartMenu(void)
             }
             g_SoundPlayer.PlaySoundByIdx(0xb, 0);
         }
-        if (WAS_PRESSED(KEY_BOMB | KEY_MENU))
+        if (WAS_PRESSED(TH_BUTTON_RETURNMENU))
         {
             this->cursor = 7;
             g_SoundPlayer.PlaySoundByIdx(0xb, 0);
@@ -317,10 +302,83 @@ ZunResult MainMenu::DrawStartMenu(void)
 }
 #pragma optimize("", on)
 
-void _strcpy(char *dst, char *src)
+#pragma optimize("s", on)
+void MainMenu::DrawMenuItem(AnmVm *vm, int itemNumber, int cursor, D3DCOLOR currentItemColor, D3DCOLOR otherItemColor,
+                            int vm_amount)
 {
-    strcpy(dst, src);
+    D3DXVECTOR3 otherItemPos;
+    D3DXVECTOR3 currentItemPos;
+
+    if (itemNumber == cursor)
+    {
+        if (((g_Supervisor.cfg.opts >> GCOS_USE_D3D_HW_TEXTURE_BLENDING & 1) |
+             (g_Supervisor.cfg.opts >> GCOS_NO_COLOR_COMP & 1)) == 0)
+        {
+            vm->color = currentItemColor;
+        }
+        else
+        {
+            g_AnmManager->SetActiveSprite(vm, vm->anotherSpriteNumber + vm_amount);
+            vm->color = currentItemColor & D3DCOLOR_RGBA(0x00, 0x00, 0x00, 0xff) |
+                        D3DCOLOR_RGBA(0xff, 0xff, 0xff, 0x00); // just... why?
+        }
+
+        currentItemPos.x = -4.0f;
+        currentItemPos.y = -4.0f;
+        currentItemPos.z = 0.0f;
+        vm->pos2 = currentItemPos;
+    }
+    else
+    {
+        if ((g_Supervisor.cfg.opts >> GCOS_USE_D3D_HW_TEXTURE_BLENDING & 1 |
+             g_Supervisor.cfg.opts >> GCOS_NO_COLOR_COMP & 1) == 0)
+        {
+            vm->color = otherItemColor;
+        }
+
+        else
+        {
+            g_AnmManager->SetActiveSprite(vm, vm->anotherSpriteNumber);
+            vm->color = otherItemColor & D3DCOLOR_RGBA(0x00, 0x00, 0x00, 0xff) |
+                        D3DCOLOR_RGBA(0xff, 0xff, 0xff, 0x00); // again, why?
+        }
+        otherItemPos.x = 0.0f;
+        otherItemPos.y = 0.0f;
+        otherItemPos.z = 0.0f;
+        vm->pos2 = otherItemPos;
+    }
 }
+#pragma optimize("", on)
+
+#pragma optimize("s", on)
+#pragma function("memset")
+ZunResult MainMenu::RegisterChain(u32 isDemo)
+{
+    MainMenu *menu = &g_MainMenu;
+
+    memset(menu, 0, sizeof(MainMenu));
+    g_GameManager.isInGameMenu = 0;
+    DebugPrint(TH_DBG_MAINMENU_VRAM, g_Supervisor.d3dDevice->GetAvailableTextureMem());
+    menu->gameState = isDemo ? STATE_REPLAY_LOAD : STATE_STARTUP;
+    g_Supervisor.framerateMultiplier = 0.0;
+    menu->chainCalc = g_Chain.CreateElem((ChainCallback)MainMenu::OnUpdate);
+    menu->chainCalc->arg = menu;
+    menu->chainCalc->addedCallback = (ChainAddedCallback)MainMenu::AddedCallback;
+    menu->chainCalc->deletedCallback = (ChainDeletedCallback)MainMenu::DeletedCallback;
+    menu->stateTimer = 0;
+    if (g_Chain.AddToCalcChain(menu->chainCalc, TH_CHAIN_PRIO_CALC_MAINMENU) != 0)
+    {
+        return ZUN_ERROR;
+    }
+    menu->chainDraw = g_Chain.CreateElem((ChainCallback)MainMenu::OnDraw);
+    menu->chainDraw->arg = menu;
+    g_Chain.AddToDrawChain(menu->chainDraw, TH_CHAIN_PRIO_DRAW_MAINMENU);
+    menu->lastFrameTime = 0;
+    menu->stateTimer = 0x3c;
+    menu->frameCountForRefreshRateCalc = 0;
+    return ZUN_SUCCESS;
+}
+#pragma optimize("", on)
 
 #pragma optimize("s", on)
 #pragma function(strcpy)
@@ -549,3 +607,5 @@ i32 MainMenu::ReplayHandling()
     }
     return 0;
 }
+
+DIFFABLE_STATIC(MainMenu, g_MainMenu);
