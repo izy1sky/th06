@@ -6,6 +6,9 @@ namespace th06
 {
 struct FixedFunctionGL : GfxInterface 
 {
+    static GfxInterface *Init();
+    static void SetContextFlags();
+
     virtual void SetFogRange(f32 near, f32 far);
     virtual void SetFogColor(ZunColor color);
     virtual void ToggleVertexAttribute(u8 attr, bool enable);
