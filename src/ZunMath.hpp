@@ -100,6 +100,12 @@ inline u16 RotateLeft16(u16 n, u8 s)
 
 // sizeof checks kept in because technically, the standard does allow compilers to add more padding than is required
 
+struct ZunVec2Raw
+{
+    LE<f32> x;
+    LE<f32> y;
+};
+
 // Replacing all former uses of D3DXVECTOR2
 struct ZunVec2
 {
@@ -149,7 +155,14 @@ struct ZunVec2
         return (f64)this->VectorLength();
     }
 };
-static_assert(sizeof(ZunVec2) == 0x08, "ZunVec2 has additional padding between struct members!");
+static_assert(sizeof(ZunVec2) == 0x08 && sizeof(ZunVec2Raw) == 0x08, "ZunVec2 has additional padding between struct members!");
+
+struct ZunVec3Raw
+{
+    LE<f32> x;
+    LE<f32> y;
+    LE<f32> z;
+};
 
 // Replacing all former uses of D3DXVECTOR3
 struct ZunVec3
@@ -167,6 +180,15 @@ struct ZunVec3
         this->x = x;
         this->y = y;
         this->z = z;
+    }
+
+    inline constexpr ZunVec3 &operator=(const ZunVec3Raw &a)
+    {
+        this->x = a.x;
+        this->y = a.y;
+        this->z = a.z;
+
+        return *this;
     }
 
     ZunVec3 operator-() const
@@ -260,13 +282,7 @@ struct ZunVec3
         bottomRightCorner->y = size->y / 2.0f + centerPosition->y;
     }
 };
-static_assert(sizeof(ZunVec3) == 0x0C, "ZunVec3 has additional padding between struct members!");
-
-struct ZunVec2Raw
-{
-    LE<f32> x;
-    LE<f32> y;
-};
+static_assert(sizeof(ZunVec3) == 0x0C && sizeof(ZunVec3Raw) == 0x0C, "ZunVec3 has additional padding between struct members!");
 
 struct ZunVec4
 {
