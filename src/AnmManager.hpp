@@ -9,16 +9,17 @@
 #include "AnmVm.hpp"
 #include "GameManager.hpp"
 #include "GameWindow.hpp"
+#include "ZunEndian.hpp"
 #include "ZunResult.hpp"
 #include "ZunTimer.hpp"
 #include "inttypes.hpp"
 
-#define TEX_FMT_UNKNOWN 0
-#define TEX_FMT_A8R8G8B8 1
-#define TEX_FMT_A1R5G5B5 2
-#define TEX_FMT_R5G6B5 3
-#define TEX_FMT_R8G8B8 4
-#define TEX_FMT_A4R4G4B4 5
+#define TEX_FMT_UNKNOWN 0u
+#define TEX_FMT_A8R8G8B8 1u
+#define TEX_FMT_A1R5G5B5 2u
+#define TEX_FMT_R5G6B5 3u
+#define TEX_FMT_R8G8B8 4u
+#define TEX_FMT_A4R4G4B4 5u
 
 struct TextureData
 {
@@ -118,39 +119,37 @@ enum DirtyRenderStateBitShifts
 
 struct AnmRawSprite
 {
-    u32 id;
-    ZunVec2 offset;
-    ZunVec2 size;
+    LE<u32> id;
+    ZunVec2Raw offset;
+    ZunVec2Raw size;
 };
 
 struct AnmRawScript
 {
-    u32 id;
-    const AnmRawInstr *firstInstruction;
+    LE<u32> id;
+    LE<u32> firstInstruction;
 };
-
-// WARNING: scripts seems unused, but if it were to be used,
-//   this would be dangerous for compatibility since AnmRawScript contains a pointer
 
 struct AnmRawEntry
 {
-    i32 numSprites;
-    i32 numScripts;
+    LE<i32> numSprites;
+    LE<i32> numScripts;
     u32 textureIdx;
-    i32 width;
-    i32 height;
-    u32 format;
-    u32 colorKey;
-    u32 nameOffset;
+    LE<i32> width;
+    LE<i32> height;
+    LE<u32> format;
+    LE<u32> colorKey;
+    LE<u32> nameOffset;
     u32 spriteIdxOffset;
-    u32 alphaNameOffset;
-    u32 version;
-    u32 unk1;
-    u32 textureOffset;
-    u32 hasData;
-    u32 nextOffset;
-    u32 unk2;
-    u32 spriteOffsets[10];
+    LE<u32> alphaNameOffset;
+    LE<u32> version;
+    LE<u32> unk1;
+    LE<u32> textureOffset;
+    LE<u32> hasData;
+    LE<u32> nextOffset;
+    LE<u32> unk2;
+    // These last two are actually flexible sizes based off the first 2 variables
+    LE<u32> spriteOffsets[10];
     AnmRawScript scripts[10];
 };
 
