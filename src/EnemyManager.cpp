@@ -147,6 +147,7 @@ void EnemyManager::RunEclTimeline()
     const EclTimelineInstrArgs *args1;
     i32 subrankIncreaseFrame;
     Enemy *spawnedEnemy;
+    ZunVec3 tmpVec3;
 
     if (this->timelineInstr == NULL)
     {
@@ -174,22 +175,24 @@ void EnemyManager::RunEclTimeline()
                 if (!g_Gui.BossPresent())
                 {
                     args1 = &this->timelineInstr->args;
-                    this->SpawnEnemy(this->timelineInstr->arg0, args1->Var1AsVec(), args1->ushortVar1,
-                                     args1->ushortVar2, args1->uintVar4);
+                    tmpVec3 = *args1->Var1AsVec();
+                    this->SpawnEnemy(this->timelineInstr->arg0, &tmpVec3, args1->ushortVar1, args1->ushortVar2,
+                                     args1->uintVar4);
                 }
                 break;
             case 1:
                 if (!g_Gui.BossPresent())
                 {
-                    this->SpawnEnemy(this->timelineInstr->arg0, this->timelineInstr->args.Var1AsVec(), -1, ITEM_NO_ITEM,
-                                     -1);
+                    tmpVec3 = *this->timelineInstr->args.Var1AsVec();
+                    this->SpawnEnemy(this->timelineInstr->arg0, &tmpVec3, -1, ITEM_NO_ITEM, -1);
                 }
                 break;
             case 2:
                 if (!g_Gui.BossPresent())
                 {
                     args2 = &this->timelineInstr->args;
-                    spawnedEnemy = this->SpawnEnemy(this->timelineInstr->arg0, args2->Var1AsVec(), args2->ushortVar1,
+                    tmpVec3 = *args2->Var1AsVec();
+                    spawnedEnemy = this->SpawnEnemy(this->timelineInstr->arg0, &tmpVec3, args2->ushortVar1,
                                                     args2->ushortVar2, args2->uintVar4);
                     spawnedEnemy->flags.unk4 = 1;
                 }
@@ -197,8 +200,8 @@ void EnemyManager::RunEclTimeline()
             case 3:
                 if (!g_Gui.BossPresent())
                 {
-                    spawnedEnemy = this->SpawnEnemy(this->timelineInstr->arg0, this->timelineInstr->args.Var1AsVec(),
-                                                    -1, ITEM_NO_ITEM, -1);
+                    tmpVec3 = *this->timelineInstr->args.Var1AsVec();
+                    spawnedEnemy = this->SpawnEnemy(this->timelineInstr->arg0, &tmpVec3, -1, ITEM_NO_ITEM, -1);
                     spawnedEnemy->flags.unk4 = 1;
                 }
                 break;
