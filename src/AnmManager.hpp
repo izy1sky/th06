@@ -168,6 +168,17 @@ struct AnmManager
 
     //    void ReleaseVertexBuffer();
     void SetupVertexBuffer();
+    void FlushVertexBuffer();
+    void ClearVertexBuffer();
+
+    u32 spritesToDraw;
+    VertexTex1Xyzrhw* vertexBufferStartPtr;
+    VertexTex1Xyzrhw* vertexBufferEndPtr;
+    VertexTex1Xyzrhw  vertexBuffer[0x18000];
+
+    u32 renderStateChangesThisFrame;
+    u32 flushesThisFrame;
+    ZunResult AddSpriteToDrawBuffer(VertexTex1Xyzrhw *vertices);
 
     ZunResult CreateEmptyTexture(i32 textureIdx, u32 width, u32 height, i32 textureFormat);
     ZunResult LoadTexture(i32 textureIdx, const char *textureName, i32 textureFormat, ZunColor colorKey);
@@ -237,6 +248,7 @@ struct AnmManager
 
     void SetDepthMask(bool depthEnable)
     {
+        if(this->dirtyDepthMask != depthEnable) FlushVertexBuffer();
         this->dirtyDepthMask = depthEnable;
 
         if ((g_Supervisor.cfg.opts >> GCOS_TURN_OFF_DEPTH_TEST) & 1 || this->dirtyDepthMask == this->depthMask)
@@ -262,6 +274,7 @@ struct AnmManager
     {
         if (this->currentTextureHandle != textureHandle)
         {
+            FlushVertexBuffer();
             this->currentTextureHandle = textureHandle;
             g_glFuncTable.glBindTexture(GL_TEXTURE_2D, textureHandle);
         }
@@ -277,6 +290,8 @@ struct AnmManager
         {
             return;
         }
+
+        FlushVertexBuffer();
 
         this->projectionMode = projectionMode;
 
@@ -306,6 +321,7 @@ struct AnmManager
 
     void SetFogRange(f32 nearPlane, f32 farPlane)
     {
+        this->FlushVertexBuffer();
         this->dirtyFogNear = nearPlane;
         this->dirtyFogFar = farPlane;
         this->dirtyFlags |= (1 << DIRTY_FOG);
@@ -332,6 +348,7 @@ struct AnmManager
 
     void SetTextureFactor(ZunColor factor)
     {
+        if(this->dirtytTextureFactor != factor) FlushVertexBuffer();
         this->dirtytTextureFactor = factor;
 
         if (this->dirtytTextureFactor == this->textureFactor)

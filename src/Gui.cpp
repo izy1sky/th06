@@ -787,6 +787,7 @@ ZunResult GuiImpl::DrawDialogue() const
         g_AnmManager->SetCurrentTexture(g_AnmManager->dummyTextureHandle);
     }
 
+    g_AnmManager->FlushVertexBuffer();
     g_AnmManager->SetProjectionMode(PROJECTION_MODE_ORTHOGRAPHIC);
 
     g_AnmManager->SetVertexAttributes(VERTEX_ATTR_DIFFUSE);
@@ -1177,6 +1178,7 @@ void Gui::DrawGameScene()
         VertexDiffuseXyzrhw vertices[4];
         if (g_GameManager.currentPower > 0)
         {
+            g_AnmManager->FlushVertexBuffer();
             //            std::memcpy(&vertices[0].position, &ZunVec3(496.0f, 186.0f, 0.1f), sizeof(ZunVec3));
             //            std::memcpy(&vertices[1].position, &ZunVec3(g_GameManager.currentPower + 496 + 0.0f, 186.0f,
             //            0.1f),
@@ -1369,6 +1371,7 @@ void Gui::DrawStageElements() const
         //        g_Supervisor.d3dDevice->SetViewport(&g_Supervisor.viewport);
         g_AnmManager->DrawNoRotation(&this->impl->loadingScreenSprite);
     }
+    g_AnmManager->FlushVertexBuffer();
 }
 
 ZunResult Gui::AddedCallback(Gui *gui)

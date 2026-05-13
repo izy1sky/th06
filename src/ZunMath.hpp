@@ -258,6 +258,13 @@ struct ZunVec4
         this->z = z;
         this->w = w;
     }
+    ZunVec4(ZunVec3 vec, f32 w)
+    {
+        this->x = vec.x;
+        this->y = vec.y;
+        this->z = vec.z;
+        this->w = w;
+    }
 };
 static_assert(sizeof(ZunVec4) == 0x10, "ZunVec4 has additional padding between struct members!");
 
@@ -427,6 +434,7 @@ struct ZunViewport
 };
 
 #define ZUN_MIN(x, y) ((x) > (y) ? (y) : (x))
+#define ZUN_MAX(x, y) ((x) < (y) ? (y) : (x))
 #define ZUN_PI ((f32)(3.14159265358979323846))
 #define ZUN_2PI ((f32)(ZUN_PI * 2.0f))
 

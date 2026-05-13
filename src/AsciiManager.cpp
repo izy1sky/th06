@@ -246,6 +246,7 @@ void AsciiManager::DrawStrings(void)
                 g_Supervisor.viewport.height = GAME_WINDOW_HEIGHT;
             }
 
+            //g_AnmManager->FlushVertexBuffer();
             g_AnmManager->SetProjectionMode(PROJECTION_MODE_PERSPECTIVE);
             g_Supervisor.viewport.Set();
         }
@@ -592,6 +593,7 @@ void StageMenu::OnDrawGameMenu()
 
     if (g_GameManager.isInGameMenu)
     {
+        //g_AnmManager->FlushVertexBuffer();
         g_Supervisor.viewport.x = g_GameManager.arcadeRegionTopLeftPos.x;
         g_Supervisor.viewport.y = g_GameManager.arcadeRegionTopLeftPos.y;
         g_Supervisor.viewport.width = g_GameManager.arcadeRegionSize.x;
@@ -612,6 +614,7 @@ void StageMenu::OnDrawGameMenu()
             }
         }
     }
+    g_AnmManager->FlushVertexBuffer();
     return;
 }
 
@@ -804,6 +807,7 @@ void StageMenu::OnDrawRetryMenu()
 
     if (g_GameManager.isInRetryMenu)
     {
+        //g_AnmManager->FlushVertexBuffer();
         g_Supervisor.viewport.x = g_GameManager.arcadeRegionTopLeftPos.x;
         g_Supervisor.viewport.y = g_GameManager.arcadeRegionTopLeftPos.y;
         g_Supervisor.viewport.width = g_GameManager.arcadeRegionSize.x;
@@ -832,6 +836,7 @@ void StageMenu::OnDrawRetryMenu()
             }
         }
     }
+    g_AnmManager->FlushVertexBuffer();
     return;
 }
 
@@ -842,6 +847,7 @@ void AsciiManager::DrawPopupsWithHwVertexProcessing()
     i32 i;
     i32 j;
 
+    //g_AnmManager->FlushVertexBuffer();
     currentPopup = this->popups;
     g_Supervisor.viewport.x = g_GameManager.arcadeRegionTopLeftPos.x;
     g_Supervisor.viewport.y = g_GameManager.arcadeRegionTopLeftPos.y;
@@ -893,6 +899,7 @@ void AsciiManager::DrawPopupsWithoutHwVertexProcessing()
     i32 i;
     i32 j;
 
+    //g_AnmManager->FlushVertexBuffer();
     currentPopup = this->popups;
     g_Supervisor.viewport.x = g_GameManager.arcadeRegionTopLeftPos.x;
     g_Supervisor.viewport.y = g_GameManager.arcadeRegionTopLeftPos.y;

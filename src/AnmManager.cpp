@@ -199,6 +199,7 @@ AnmManager::AnmManager()
     this->maybeLoadedSpriteCount = 0;
 
     std::memset(this, 0, sizeof(AnmManager));
+    ClearVertexBuffer();
 
     for (i32 spriteIndex = 0; spriteIndex < ARRAY_SIZE_SIGNED(this->sprites); spriteIndex++)
     {
@@ -699,6 +700,7 @@ void AnmManager::SetRenderStateForVm(const AnmVm *vm)
 {
     if (this->currentBlendMode != vm->flags.blendMode)
     {
+        FlushVertexBuffer();
         this->currentBlendMode = vm->flags.blendMode;
         if (this->currentBlendMode == AnmVmBlendMode_InvSrcAlpha)
         {
@@ -849,6 +851,7 @@ void AnmManager::UpdateDirtyStates()
 
 ZunResult AnmManager::DrawOrthographic(const AnmVm *vm, bool roundToPixel)
 {
+    float triangleX1, triangleX2, triangleY1, triangleY2;
     if (roundToPixel)
     {
         // In the original D3D code, 0.5 was subtracted from the final position here to center on D3D
@@ -866,6 +869,31 @@ ZunResult AnmManager::DrawOrthographic(const AnmVm *vm, bool roundToPixel)
     }
     g_PrimitivesToDrawVertexBuf[0].position.z = g_PrimitivesToDrawVertexBuf[1].position.z =
         g_PrimitivesToDrawVertexBuf[2].position.z = g_PrimitivesToDrawVertexBuf[3].position.z = vm->pos.z;
+    
+    
+    triangleX1 = ZUN_MAX(g_PrimitivesToDrawVertexBuf[0].position.x, g_PrimitivesToDrawVertexBuf[1].position.x);
+    triangleX1 = ZUN_MAX(g_PrimitivesToDrawVertexBuf[2].position.x, triangleX1);
+    triangleX1 = ZUN_MAX(g_PrimitivesToDrawVertexBuf[3].position.x, triangleX1);
+
+    triangleY1 = ZUN_MAX(g_PrimitivesToDrawVertexBuf[0].position.y, g_PrimitivesToDrawVertexBuf[1].position.y);
+    triangleY1 = ZUN_MAX(g_PrimitivesToDrawVertexBuf[2].position.y, triangleY1);
+    triangleY1 = ZUN_MAX(g_PrimitivesToDrawVertexBuf[3].position.y, triangleY1);
+
+    triangleX2 = ZUN_MIN(g_PrimitivesToDrawVertexBuf[0].position.x, g_PrimitivesToDrawVertexBuf[1].position.x);
+    triangleX2 = ZUN_MIN(g_PrimitivesToDrawVertexBuf[2].position.x, triangleX2);
+    triangleX2 = ZUN_MIN(g_PrimitivesToDrawVertexBuf[3].position.x, triangleX2);
+
+    triangleY2 = ZUN_MIN(g_PrimitivesToDrawVertexBuf[0].position.y, g_PrimitivesToDrawVertexBuf[1].position.y);
+    triangleY2 = ZUN_MIN(g_PrimitivesToDrawVertexBuf[2].position.y, triangleY2);
+    triangleY2 = ZUN_MIN(g_PrimitivesToDrawVertexBuf[3].position.y, triangleY2);
+
+    if (triangleX1 < g_Supervisor.viewport.x || triangleY1 < g_Supervisor.viewport.y ||
+        triangleX2 > (g_Supervisor.viewport.x + g_Supervisor.viewport.width) ||
+        triangleY2 > (g_Supervisor.viewport.y + g_Supervisor.viewport.height))
+    {
+        return ZUN_SUCCESS;
+    }
+
     if (this->currentSprite != vm->sprite)
     {
         this->currentSprite = vm->sprite;
@@ -902,10 +930,12 @@ ZunResult AnmManager::DrawOrthographic(const AnmVm *vm, bool roundToPixel)
 
     if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) == 0)
     {
-        this->SetAttributePointer(VERTEX_ARRAY_POSITION, sizeof(*g_PrimitivesToDrawVertexBuf),
+        AddSpriteToDrawBuffer(g_PrimitivesToDrawVertexBuf);
+        /*this->SetAttributePointer(VERTEX_ARRAY_POSITION, sizeof(*g_PrimitivesToDrawVertexBuf),
                                   &g_PrimitivesToDrawVertexBuf[0].position);
         this->SetAttributePointer(VERTEX_ARRAY_TEX_COORD, sizeof(*g_PrimitivesToDrawVertexBuf),
-                                  &g_PrimitivesToDrawVertexBuf[0].textureUV);
+                                  &g_PrimitivesToDrawVertexBuf[0].textureUV);*/
+        
         //        g_Supervisor.d3dDevice->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, g_PrimitivesToDrawVertexBuf, 0x18);
     }
     else
@@ -938,9 +968,57 @@ ZunResult AnmManager::DrawOrthographic(const AnmVm *vm, bool roundToPixel)
         this->SetAttributePointer(VERTEX_ARRAY_DIFFUSE, sizeof(*g_PrimitivesToDrawNoVertexBuf),
                                   &g_PrimitivesToDrawNoVertexBuf[0].diffuse);
         //        g_Supervisor.d3dDevice->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, g_PrimitivesToDrawNoVertexBuf, 0x1c);
+        this->BackendDrawCall();
     }
 
-    this->BackendDrawCall();
+    return ZUN_SUCCESS;
+}
+
+void AnmManager::ClearVertexBuffer()
+{
+    if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) != 0)
+    {
+        return;
+    }
+    this->spritesToDraw = 0;
+    this->vertexBufferStartPtr = this->vertexBufferEndPtr = this->vertexBuffer;
+}
+
+void AnmManager::FlushVertexBuffer()
+{
+    if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) != 0) return;
+    if(spritesToDraw == 0) return;
+
+    SetVertexAttributes(VERTEX_ATTR_TEX_COORD);
+
+    SetAttributePointer(VERTEX_ARRAY_POSITION, sizeof(VertexTex1Xyzrhw),
+                                &vertexBufferStartPtr->position);
+    SetAttributePointer(VERTEX_ARRAY_TEX_COORD, sizeof(VertexTex1Xyzrhw),
+                                &vertexBufferStartPtr->textureUV);
+    UpdateDirtyStates();
+
+    g_glFuncTable.glDrawArrays(GL_TRIANGLES, 0, spritesToDraw * 6);
+
+    ClearVertexBuffer();
+    flushesThisFrame++;
+}
+
+
+/* This function copies 4 vertices creating a quad into 6 vertices
+ * (2 triangles) for rendering.
+ */
+
+ZunResult AnmManager::AddSpriteToDrawBuffer(VertexTex1Xyzrhw *vertices)
+{
+    this->vertexBufferEndPtr[0] = vertices[0];
+    this->vertexBufferEndPtr[1] = vertices[1];
+    this->vertexBufferEndPtr[2] = vertices[2];
+    this->vertexBufferEndPtr[3] = vertices[1];
+    this->vertexBufferEndPtr[4] = vertices[2];
+    this->vertexBufferEndPtr[5] = vertices[3];
+
+    this->vertexBufferEndPtr += 6;
+    this->spritesToDraw++;
 
     return ZUN_SUCCESS;
 }
@@ -1177,18 +1255,38 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
     worldTransformMatrix.m[3][2] = vm->pos.z;
 
     // Now, set transform matrix.
-    ZunMatrix modelView = originalView * worldTransformMatrix;
-    this->SetTransformMatrix(MATRIX_VIEW, modelView);
+    ZunMatrix modelView;
+    if ((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF & 1) != 0) {
+        modelView = originalView * worldTransformMatrix;
+        this->SetTransformMatrix(MATRIX_VIEW, modelView);
+    } else {
+
+        //TODO: uhhh could this have a negative impact on performance?
+        for(int i = 0; i < 4; i++)
+            g_PrimitivesToDrawVertexBuf[i].position = ZunVec4(worldTransformMatrix * this->vertexBufferContents[i].position, 1.0f);
+
+        g_PrimitivesToDrawVertexBuf[0].textureUV.x = g_PrimitivesToDrawVertexBuf[2].textureUV.x =
+            vm->sprite->uvStart.x + vm->uvScrollPos.x;
+        g_PrimitivesToDrawVertexBuf[1].textureUV.x = g_PrimitivesToDrawVertexBuf[3].textureUV.x =
+            vm->sprite->uvEnd.x + vm->uvScrollPos.x;
+        g_PrimitivesToDrawVertexBuf[0].textureUV.y = g_PrimitivesToDrawVertexBuf[1].textureUV.y =
+            vm->sprite->uvStart.y + vm->uvScrollPos.y;
+        g_PrimitivesToDrawVertexBuf[2].textureUV.y = g_PrimitivesToDrawVertexBuf[3].textureUV.y =
+            vm->sprite->uvEnd.y + vm->uvScrollPos.y;
+    }
 
     // Load sprite if vm->sprite is not the same as current sprite.
     if (this->currentSprite != vm->sprite)
     {
         this->currentSprite = vm->sprite;
-        textureMatrix = vm->matrix;
-        textureMatrix.m[3][0] = vm->sprite->uvStart.x + vm->uvScrollPos.x;
-        textureMatrix.m[3][1] = vm->sprite->uvStart.y + vm->uvScrollPos.y;
-
-        this->SetTransformMatrix(MATRIX_TEXTURE, textureMatrix);
+        if ((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF & 1) != 0)
+        {
+            textureMatrix = vm->matrix;
+            textureMatrix.m[3][0] = vm->sprite->uvStart.x + vm->uvScrollPos.x;
+            textureMatrix.m[3][1] = vm->sprite->uvStart.y + vm->uvScrollPos.y;
+            
+            this->SetTransformMatrix(MATRIX_TEXTURE, textureMatrix);
+        }
 
         SetCurrentTexture(this->textures[vm->sprite->sourceFileIndex].handle);
     }
@@ -1208,10 +1306,8 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
     // Draw the VM.
     if ((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF & 1) == 0)
     {
-        this->SetAttributePointer(VERTEX_ARRAY_POSITION, sizeof(*g_PrimitivesToDrawUnknown),
-                                  &g_PrimitivesToDrawUnknown[0].position);
-        this->SetAttributePointer(VERTEX_ARRAY_TEX_COORD, sizeof(*g_PrimitivesToDrawUnknown),
-                                  &g_PrimitivesToDrawUnknown[0].textureUV);
+
+        AddSpriteToDrawBuffer(g_PrimitivesToDrawVertexBuf);
     }
     else
     {
@@ -1221,11 +1317,11 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
                                   &g_PrimitivesToDrawUnknown[0].textureUV);
         this->SetAttributePointer(VERTEX_ARRAY_DIFFUSE, sizeof(*g_PrimitivesToDrawUnknown),
                                   &g_PrimitivesToDrawUnknown[0].diffuse);
+
+        this->BackendDrawCall();
+        this->SetTransformMatrix(MATRIX_VIEW, originalView);
     }
 
-    this->BackendDrawCall();
-
-    this->SetTransformMatrix(MATRIX_VIEW, originalView);
     return ZUN_SUCCESS;
 }
 
@@ -1272,17 +1368,37 @@ ZunResult AnmManager::Draw2(const AnmVm *vm)
     worldTransformMatrix.m[1][1] *= -vm->scaleY;
 
     ZunMatrix originalView = this->dirtyTransformMatrices[MATRIX_VIEW];
-    ZunMatrix modelView = originalView * worldTransformMatrix;
-    this->SetTransformMatrix(MATRIX_VIEW, modelView);
+    ZunMatrix modelView;
 
+    if ((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF & 1) != 0) {
+        modelView = originalView * worldTransformMatrix;
+        this->SetTransformMatrix(MATRIX_VIEW, modelView);
+    } else {
+
+        //TODO: uhhh could this have a negative impact on performance?
+        for(int i = 0; i < 4; i++)
+            g_PrimitivesToDrawVertexBuf[i].position = ZunVec4(worldTransformMatrix * this->vertexBufferContents[i].position, 1.0f);
+
+        g_PrimitivesToDrawVertexBuf[0].textureUV.x = g_PrimitivesToDrawVertexBuf[2].textureUV.x =
+            vm->sprite->uvStart.x + vm->uvScrollPos.x;
+        g_PrimitivesToDrawVertexBuf[1].textureUV.x = g_PrimitivesToDrawVertexBuf[3].textureUV.x =
+            vm->sprite->uvEnd.x + vm->uvScrollPos.x;
+        g_PrimitivesToDrawVertexBuf[0].textureUV.y = g_PrimitivesToDrawVertexBuf[1].textureUV.y =
+            vm->sprite->uvStart.y + vm->uvScrollPos.y;
+        g_PrimitivesToDrawVertexBuf[2].textureUV.y = g_PrimitivesToDrawVertexBuf[3].textureUV.y =
+            vm->sprite->uvEnd.y + vm->uvScrollPos.y;
+    }
     if (this->currentSprite != vm->sprite)
     {
         this->currentSprite = vm->sprite;
-        textureMatrix = vm->matrix;
-        textureMatrix.m[3][0] = vm->sprite->uvStart.x + vm->uvScrollPos.x;
-        textureMatrix.m[3][1] = vm->sprite->uvStart.y + vm->uvScrollPos.y;
-
-        this->SetTransformMatrix(MATRIX_TEXTURE, textureMatrix);
+        if ((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF & 1) != 0)
+        {
+            textureMatrix = vm->matrix;
+            textureMatrix.m[3][0] = vm->sprite->uvStart.x + vm->uvScrollPos.x;
+            textureMatrix.m[3][1] = vm->sprite->uvStart.y + vm->uvScrollPos.y;
+            
+            this->SetTransformMatrix(MATRIX_TEXTURE, textureMatrix);
+        }
 
         //        if (this->currentTextureHandle != this->textures[vm->sprite->sourceFileIndex].handle)
         //        {
@@ -1306,12 +1422,7 @@ ZunResult AnmManager::Draw2(const AnmVm *vm)
 
     if ((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF & 1) == 0)
     {
-        this->SetAttributePointer(VERTEX_ARRAY_POSITION, sizeof(*g_PrimitivesToDrawUnknown),
-                                  &g_PrimitivesToDrawUnknown[0].position);
-        this->SetAttributePointer(VERTEX_ARRAY_TEX_COORD, sizeof(*g_PrimitivesToDrawUnknown),
-                                  &g_PrimitivesToDrawUnknown[0].textureUV);
-
-        //        g_Supervisor.d3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
+        AddSpriteToDrawBuffer(g_PrimitivesToDrawVertexBuf);
     }
     else
     {
@@ -1323,11 +1434,11 @@ ZunResult AnmManager::Draw2(const AnmVm *vm)
                                   &g_PrimitivesToDrawUnknown[0].diffuse);
 
         //        g_Supervisor.d3dDevice->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, , 0x18);
+
+        this->BackendDrawCall();
+
+        this->SetTransformMatrix(MATRIX_VIEW, originalView);
     }
-
-    this->BackendDrawCall();
-
-    this->SetTransformMatrix(MATRIX_VIEW, originalView);
 
     return ZUN_SUCCESS;
 }
