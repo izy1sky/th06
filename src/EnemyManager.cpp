@@ -789,6 +789,7 @@ ChainCallbackResult EnemyManager::OnDraw(EnemyManager *mgr)
                 curEnemyVm->pos = curEnemy->position + curEnemyVm->posOffset;
                 curEnemyVm->pos.z = 0.495f;
                 g_AnmManager->Draw2(curEnemyVm);
+                g_AnmManager->FlushVertexBuffer();
             }
         }
         if (curEnemy->flags.unk13 != 0)
@@ -798,6 +799,7 @@ ChainCallbackResult EnemyManager::OnDraw(EnemyManager *mgr)
         curEnemy->primaryVm.pos = curEnemy->position + curEnemy->primaryVm.posOffset;
         curEnemy->primaryVm.pos.z = 0.494f;
         g_AnmManager->Draw2(&curEnemy->primaryVm);
+        g_AnmManager->FlushVertexBuffer();
         for (curEnemyVmIdx = 4; curEnemyVmIdx < 8; curEnemyVmIdx++, curEnemyVm++)
         {
             if (0 <= curEnemyVm->anmFileIndex)
