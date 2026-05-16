@@ -248,7 +248,7 @@ struct AnmManager
 
     void SetDepthMask(bool depthEnable)
     {
-        if(this->dirtyDepthMask != depthEnable) FlushVertexBuffer();
+        if(this->dirtyDepthMask != depthEnable) this->FlushVertexBuffer();
         this->dirtyDepthMask = depthEnable;
 
         if ((g_Supervisor.cfg.opts >> GCOS_TURN_OFF_DEPTH_TEST) & 1 || this->dirtyDepthMask == this->depthMask)
@@ -274,7 +274,7 @@ struct AnmManager
     {
         if (this->currentTextureHandle != textureHandle)
         {
-            FlushVertexBuffer();
+            this->FlushVertexBuffer();
             this->currentTextureHandle = textureHandle;
             g_glFuncTable.glBindTexture(GL_TEXTURE_2D, textureHandle);
         }
@@ -291,7 +291,7 @@ struct AnmManager
             return;
         }
 
-        FlushVertexBuffer();
+        this->FlushVertexBuffer();
 
         this->projectionMode = projectionMode;
 
@@ -348,7 +348,7 @@ struct AnmManager
 
     void SetTextureFactor(ZunColor factor)
     {
-        if(this->dirtytTextureFactor != factor) FlushVertexBuffer();
+        if(this->dirtytTextureFactor != factor) this->FlushVertexBuffer();
         this->dirtytTextureFactor = factor;
 
         if (this->dirtytTextureFactor == this->textureFactor)

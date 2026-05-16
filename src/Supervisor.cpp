@@ -716,8 +716,6 @@ ZunResult Supervisor::LoadConfig(const char *path)
     if (((this->cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) != 0)
     {
         g_GameErrorContext.Log(TH_ERR_NO_VERTEX_BUFFER);
-    } else {
-        utils::DebugPrint("DISCLAIMER: Using experimental batch rendering. If graphics are broken then enable the \"No Vertex Buffer\" option for the original behavior.\n");
     }
     if (((this->cfg.opts >> GCOS_DONT_USE_FOG) & 1) != 0)
     {

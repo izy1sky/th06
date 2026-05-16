@@ -700,7 +700,7 @@ void AnmManager::SetRenderStateForVm(const AnmVm *vm)
 {
     if (this->currentBlendMode != vm->flags.blendMode)
     {
-        FlushVertexBuffer();
+        this->FlushVertexBuffer();
         this->currentBlendMode = vm->flags.blendMode;
         if (this->currentBlendMode == AnmVmBlendMode_InvSrcAlpha)
         {
@@ -930,7 +930,7 @@ ZunResult AnmManager::DrawOrthographic(const AnmVm *vm, bool roundToPixel)
 
     if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) == 0)
     {
-        AddSpriteToDrawBuffer(g_PrimitivesToDrawVertexBuf);
+        this->AddSpriteToDrawBuffer(g_PrimitivesToDrawVertexBuf);
         /*this->SetAttributePointer(VERTEX_ARRAY_POSITION, sizeof(*g_PrimitivesToDrawVertexBuf),
                                   &g_PrimitivesToDrawVertexBuf[0].position);
         this->SetAttributePointer(VERTEX_ARRAY_TEX_COORD, sizeof(*g_PrimitivesToDrawVertexBuf),
@@ -987,19 +987,19 @@ void AnmManager::ClearVertexBuffer()
 void AnmManager::FlushVertexBuffer()
 {
     if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) != 0) return;
-    if(spritesToDraw == 0) return;
+    if (spritesToDraw == 0) return;
 
-    SetVertexAttributes(VERTEX_ATTR_TEX_COORD);
+    this->SetVertexAttributes(VERTEX_ATTR_TEX_COORD);
 
-    SetAttributePointer(VERTEX_ARRAY_POSITION, sizeof(VertexTex1Xyzrhw),
+    this->SetAttributePointer(VERTEX_ARRAY_POSITION, sizeof(VertexTex1Xyzrhw),
                                 &vertexBufferStartPtr->position);
-    SetAttributePointer(VERTEX_ARRAY_TEX_COORD, sizeof(VertexTex1Xyzrhw),
+    this->SetAttributePointer(VERTEX_ARRAY_TEX_COORD, sizeof(VertexTex1Xyzrhw),
                                 &vertexBufferStartPtr->textureUV);
-    UpdateDirtyStates();
+    this->UpdateDirtyStates();
 
     g_glFuncTable.glDrawArrays(GL_TRIANGLES, 0, spritesToDraw * 6);
 
-    ClearVertexBuffer();
+    this->ClearVertexBuffer();
     flushesThisFrame++;
 }
 
@@ -1200,7 +1200,7 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
         return ZUN_ERROR;
     }
 
-    SetProjectionMode(PROJECTION_MODE_PERSPECTIVE);
+    this->SetProjectionMode(PROJECTION_MODE_PERSPECTIVE);
 
     ZunMatrix originalView = this->dirtyTransformMatrices[MATRIX_VIEW];
 
@@ -1260,8 +1260,6 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
         modelView = originalView * worldTransformMatrix;
         this->SetTransformMatrix(MATRIX_VIEW, modelView);
     } else {
-
-        //TODO: uhhh could this have a negative impact on performance?
         for(int i = 0; i < 4; i++)
             g_PrimitivesToDrawVertexBuf[i].position = ZunVec4(worldTransformMatrix * this->vertexBufferContents[i].position, 1.0f);
 
@@ -1288,7 +1286,7 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
             this->SetTransformMatrix(MATRIX_TEXTURE, textureMatrix);
         }
 
-        SetCurrentTexture(this->textures[vm->sprite->sourceFileIndex].handle);
+        this->SetCurrentTexture(this->textures[vm->sprite->sourceFileIndex].handle);
     }
 
     if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) == 0)
@@ -1307,7 +1305,7 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
     if ((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF & 1) == 0)
     {
 
-        AddSpriteToDrawBuffer(g_PrimitivesToDrawVertexBuf);
+        this->AddSpriteToDrawBuffer(g_PrimitivesToDrawVertexBuf);
     }
     else
     {
@@ -1374,8 +1372,6 @@ ZunResult AnmManager::Draw2(const AnmVm *vm)
         modelView = originalView * worldTransformMatrix;
         this->SetTransformMatrix(MATRIX_VIEW, modelView);
     } else {
-
-        //TODO: uhhh could this have a negative impact on performance?
         for(int i = 0; i < 4; i++)
             g_PrimitivesToDrawVertexBuf[i].position = ZunVec4(worldTransformMatrix * this->vertexBufferContents[i].position, 1.0f);
 
@@ -1406,7 +1402,7 @@ ZunResult AnmManager::Draw2(const AnmVm *vm)
         //            g_Supervisor.d3dDevice->SetTexture(0, this->currentTexture);
         //        }
 
-        SetCurrentTexture(this->textures[vm->sprite->sourceFileIndex].handle);
+        this->SetCurrentTexture(this->textures[vm->sprite->sourceFileIndex].handle);
 
         if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) == 0)
         {
@@ -1422,7 +1418,7 @@ ZunResult AnmManager::Draw2(const AnmVm *vm)
 
     if ((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF & 1) == 0)
     {
-        AddSpriteToDrawBuffer(g_PrimitivesToDrawVertexBuf);
+        this->AddSpriteToDrawBuffer(g_PrimitivesToDrawVertexBuf);
     }
     else
     {
