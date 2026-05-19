@@ -371,11 +371,13 @@ void WebGL::Enable(Capabilities cap)
     }
 }
 
-bool WebGL::HasError() {
+bool WebGL::HasError()
+{
     return g_glFuncTable.glGetError() != GL_NO_ERROR;
 }
 
-void WebGL::SetTextureFilter() {
+void WebGL::SetTextureFilter()
+{
     g_glFuncTable.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 }
 
