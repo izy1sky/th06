@@ -243,11 +243,13 @@ void FixedFunctionGL::Enable(Capabilities cap)
     }
 }
 
-bool FixedFunctionGL::HasError() {
+bool FixedFunctionGL::HasError()
+{
     return g_glFuncTable.glGetError() != GL_NO_ERROR;
 }
 
-void FixedFunctionGL::SetBlendMode(BlendMode mode) {
+void FixedFunctionGL::SetBlendMode(BlendMode mode)
+{
     if (mode == BLEND_INV_SRC_ALPHA)
     {
         g_glFuncTable.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

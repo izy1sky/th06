@@ -349,8 +349,8 @@ ZunResult AnmManager::LoadTexture(i32 textureIdx, const char *textureName, i32 t
     CreateTextureObject();
 
     // Clear any errors that might be pending
-    while(g_GfxBackend->HasError()) {
-
+    while (g_GfxBackend->HasError())
+    {
     }
 
     rawTextureData = ExtractSurfacePixels(textureSurface, g_TextureFormatBytesPerPixel[textureFormat]);
