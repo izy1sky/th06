@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GfxInterface.hpp"
+#include "GLFunc.hpp"
 #include <SDL2/SDL.h>
 #include <vector>
 

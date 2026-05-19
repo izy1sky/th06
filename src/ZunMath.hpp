@@ -1,6 +1,5 @@
 #pragma once
 
-#include "GLFunc.hpp"
 #include "inttypes.hpp"
 #include <cmath>
 #include <cstring>
