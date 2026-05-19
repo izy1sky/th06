@@ -2,7 +2,6 @@
 #include "Supervisor.hpp"
 #include "GameWindow.hpp"
 #include "utils.hpp"
-#include "GLFunc.hpp"
 #include <new>
 #include <unordered_set>
 

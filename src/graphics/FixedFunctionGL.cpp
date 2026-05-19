@@ -1,5 +1,4 @@
 #include "FixedFunctionGL.hpp"
-#include "GLFunc.hpp"
 #include "Supervisor.hpp"
 #include "GameWindow.hpp"
 #include "i18n.hpp"
@@ -297,6 +296,7 @@ void FixedFunctionGL::SetDepthMask(bool enable) {
 }
 
 void FixedFunctionGL::SetDepthFunc(DepthFunc func) {
+    // This'll end up less awkward once there's a render backend abstraction layer I swear
     if (func == DEPTH_FUNC_ALWAYS)
     {
         g_glFuncTable.glDepthFunc(GL_ALWAYS);
@@ -310,35 +310,18 @@ void FixedFunctionGL::SetDepthFunc(DepthFunc func) {
 GfxTextureHandle FixedFunctionGL::CreateTexture() {
     GLuint texture;
     g_glFuncTable.glGenTextures(1, &texture);
+    textures.push_back(texture);
 
-    u32 id;
-    if(!freeTextures.empty()) {
-        id = freeTextures.back();
-        freeTextures.pop_back();
-        textures[id] = texture;
-    } else {
-        id = textures.size();
-        textures.push_back(texture);
-    }
-
-    return {id};
+    return {textures.size()-1};
 }
 
 void FixedFunctionGL::BindTexture(GfxTextureHandle handle) {
-    if(handle > textures.size()) return;
-    GLuint tex = textures[handle.id];
-    if(tex != 0) g_glFuncTable.glBindTexture(GL_TEXTURE_2D, tex);
+    g_glFuncTable.glBindTexture(GL_TEXTURE_2D, textures[handle.id]);
 }
 
 void FixedFunctionGL::DeleteTexture(GfxTextureHandle handle) {
-    if(handle > textures.size()) return;
-    GLuint tex = textures[handle.id];
-
-    if(tex != 0) {
-        g_glFuncTable.glDeleteTextures(1, &textures[handle.id]);
-        textures[handle.id] = 0;
-        freeTextures.push_back(handle.id);
-    }
+    g_glFuncTable.glDeleteTextures(1, &textures[handle.id]);
+    textures[handle.id] = 0;
 }
 
 void FixedFunctionGL::SetTextureImage(u32 width, u32 height, PixelFormat fmt, PixelDataType type, const void* data) {
