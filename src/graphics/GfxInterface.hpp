@@ -81,8 +81,6 @@ enum PixelDataType
     PIXEL_UNSIGNED_SHORT_5_6_5,
     PIXEL_UNSIGNED_SHORT_4_4_4_4
 };
-
-// this is probably unnecessary but it looks a bit nicer than just using u32s everywhere
 struct GfxTextureHandle
 {
     u32 id = 0;
@@ -130,7 +128,7 @@ struct GfxInterface
     virtual void GetViewport(u32 *viewport) = 0;
     virtual void GetDepthRange(f32 *depthRange) = 0;
     virtual void SetViewport(i32 x, i32 y, i32 width, i32 height) = 0;
-    virtual void SetDepthRange(f32 near, f32 far) = 0;
+    virtual void SetDepthRange(f32 nearPlane, f32 farPlane) = 0;
 
     virtual void Enable(Capabilities cap) = 0;
 

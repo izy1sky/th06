@@ -8,6 +8,7 @@
 #include "ZunMath.hpp"
 #include "graphics/FixedFunctionGL.hpp"
 #include "graphics/WebGL.hpp"
+#include "graphics/Software.hpp"
 #include "i18n.hpp"
 #include "utils.hpp"
 
@@ -26,7 +27,11 @@ static const struct
 {
     const char *name;
     GfxInterface *(*TryInit)();
-} s_RenderBackends[] = {{"GL(ES) 2.0 / WebGL", WebGL::Create}, {"Fixed function GL(ES)", FixedFunctionGL::Init}};
+} s_RenderBackends[] = {
+    {"GL(ES) 2.0 / WebGL", WebGL::Create}, 
+    {"Fixed function GL(ES)", FixedFunctionGL::Init},
+    {"Software fallback (VERY SLOW)", Software::Init}
+};
 
 RenderResult GameWindow::Render()
 {
@@ -246,8 +251,12 @@ void GameWindow::CreateGameWindow()
 //     return DefWindowProcA(hWnd, uMsg, wParam, lParam);
 // }
 
-i32 GameWindow::InitD3dRendering(void)
+ZunResult GameWindow::InitD3dRendering()
 {
+    if(!g_GfxBackend) {
+        g_GameErrorContext.Fatal(TH_ERR_D3D_INIT_FAILED);
+        return ZUN_ERROR;
+    }
     //    u8 using_d3d_hal;
     //    D3DPRESENT_PARAMETERS present_params;
     //    D3DDISPLAYMODE display_mode;
@@ -476,7 +485,7 @@ i32 GameWindow::InitD3dRendering(void)
     g_GameWindow.isAppClosing = 0;
     g_Supervisor.lastFrameTime = 0;
     g_Supervisor.framerateMultiplier = 0.0;
-    return 0;
+    return ZUN_SUCCESS;
 }
 
 void GameWindow::InitD3dDevice(void)

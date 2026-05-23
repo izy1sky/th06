@@ -56,7 +56,7 @@ restart:
 
     g_AnmManager = new AnmManager();
 
-    if (GameWindow::InitD3dRendering())
+    if (GameWindow::InitD3dRendering() != ZUN_SUCCESS)
     {
         g_GameErrorContext.Flush();
         return 1;

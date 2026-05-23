@@ -62,8 +62,6 @@ GLuint createShader(const char *source, GLenum type, const char *descString,
 
     fullShaderSource[shaderSourceIndex] = source;
 
-    printf("%s", source);
-
     g_glFuncTable.glShaderSource(shaderHandle, shaderSourceIndex + 1, fullShaderSource, NULL);
     g_glFuncTable.glCompileShader(shaderHandle);
 
@@ -396,9 +394,9 @@ void WebGL::SetViewport(i32 x, i32 y, i32 width, i32 height)
     g_glFuncTable.glViewport(x, y, width, height);
 }
 
-void WebGL::SetDepthRange(f32 near, f32 far)
+void WebGL::SetDepthRange(f32 nearPlane, f32 farPlane)
 {
-    g_glFuncTable.glDepthRangef(near, far);
+    g_glFuncTable.glDepthRangef(nearPlane, farPlane);
 }
 
 void WebGL::SetBlendMode(BlendMode mode)
@@ -455,44 +453,17 @@ GfxTextureHandle WebGL::CreateTexture()
 {
     GLuint texture;
     g_glFuncTable.glGenTextures(1, &texture);
-
-    u32 id;
-    if (!freeTextures.empty())
-    {
-        id = freeTextures.back();
-        freeTextures.pop_back();
-        textures[id] = texture;
-    }
-    else
-    {
-        id = textures.size();
-        textures.push_back(texture);
-    }
-
-    return {id};
+    return texture;
 }
 
 void WebGL::BindTexture(GfxTextureHandle handle)
 {
-    if (handle > textures.size())
-        return;
-    GLuint tex = textures[handle.id];
-    if (tex != 0)
-        g_glFuncTable.glBindTexture(GL_TEXTURE_2D, tex);
+    g_glFuncTable.glBindTexture(GL_TEXTURE_2D, handle);
 }
 
 void WebGL::DeleteTexture(GfxTextureHandle handle)
 {
-    if (handle > textures.size())
-        return;
-    GLuint tex = textures[handle.id];
-
-    if (tex != 0)
-    {
-        g_glFuncTable.glDeleteTextures(1, &textures[handle.id]);
-        textures[handle.id] = 0;
-        freeTextures.push_back(handle.id);
-    }
+    g_glFuncTable.glDeleteTextures(1, (GLuint*)&handle);
 }
 
 void WebGL::SetTextureImage(u32 width, u32 height, PixelFormat fmt, PixelDataType type, const void *data)

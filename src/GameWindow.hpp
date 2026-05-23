@@ -2,6 +2,7 @@
 
 #include <SDL2/SDL_video.h>
 
+#include "ZunResult.hpp"
 #include "graphics/GfxInterface.hpp"
 #include "inttypes.hpp"
 
@@ -55,11 +56,9 @@ struct GameWindow
     static void Present();
 
     static void CreateGameWindow();
-    static i32 InitD3dRendering();
+    static ZunResult InitD3dRendering();
     static void InitD3dDevice();
 
-    // SDL_Window *window;
-    // SDL_GLContext glContext;
     i32 isAppClosing;
     i32 lastActiveAppValue;
     i32 isAppActive;
