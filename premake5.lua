@@ -173,8 +173,8 @@ project "th06"
 
   filter "configurations:Release"
     defines { "NDEBUG" }
+    symbols "Off"
     optimize "Speed"
-    symbols "On"
 
   filter {}
 
