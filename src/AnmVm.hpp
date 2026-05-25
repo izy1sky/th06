@@ -64,25 +64,6 @@ struct AnmRawInstr
     u32 args[10];
 };
 
-enum AnmVmFlagsEnum
-{
-    AnmVmFlags_Visible = 1 << 0,
-    AnmVmFlags_1 = 1 << 1,
-    AnmVmFlags_BlendMode = 1 << 2,
-    AnmVmFlags_ColorOp = 1 << 3,
-    AnmVmFlags_4 = 1 << 4,
-    AnmVmFlags_UsePosOffset = 1 << 5,
-    AnmVmFlags_FlipX = 1 << 6,
-    AnmVmFlags_FlipY = 1 << 7,
-    AnmVmFlags_AnchorLeft = 1 << 8,
-    AnmVmFlags_AnchorTop = 1 << 9,
-    /* posTime missing because it is not really a flag */
-    AnmVmFlags_ZWriteDisable = 1 << 12,
-    AnmVmFlags_IsStopped = 1 << 13,
-};
-
-#define ANM_VM_INITIAL_FLAGS 0x3
-
 enum AnmVmBlendMode
 {
     AnmVmBlendMode_InvSrcAlpha,
@@ -103,22 +84,18 @@ enum AnmVmAnchor
     AnmVmAnchor_TopLeft,
 };
 
-union AnmVmFlags {
-    u16 flags;
-    struct
-    {
-        u32 isVisible : 1;
-        u32 flag1 : 1;
-        u32 blendMode : 1;
-        u32 colorOp : 1;
-        u32 flag4 : 1;
-        u32 usePosOffset : 1;
-        u32 flip : 2;
-        u32 anchor : 2;
-        u32 posTime : 2;
-        u32 zWriteDisable : 1;
-        u32 isStopped : 1;
-    };
+struct AnmVmFlags {
+    u32 isVisible : 1;
+    u32 flag1 : 1;
+    u32 blendMode : 1;
+    u32 colorOp : 1;
+    u32 flag4 : 1;
+    u32 usePosOffset : 1;
+    u32 flip : 2;
+    u32 anchor : 2;
+    u32 posTime : 2;
+    u32 zWriteDisable : 1;
+    u32 isStopped : 1;
 };
 
 struct AnmVm
@@ -141,7 +118,8 @@ struct AnmVm
         this->alphaInterpEndTime = 0;
         this->color = COLOR_WHITE;
         this->matrix.Identity();
-        this->flags.flags = AnmVmFlags_Visible | AnmVmFlags_1;
+        this->flags.isVisible = 1;
+        this->flags.flag1 = 1;
         this->autoRotate = 0;
         this->pendingInterrupt = 0;
         this->posInterpEndTime = 0;
