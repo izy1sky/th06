@@ -1,8 +1,6 @@
 #pragma once
 
-// #include <d3d8.h>
-// #include <d3dx8math.h>
-
+#include <cstring>
 #include "ZunColor.hpp"
 #include "ZunMath.hpp"
 #include "ZunResult.hpp"
@@ -118,6 +116,7 @@ struct AnmVm
         this->alphaInterpEndTime = 0;
         this->color = COLOR_WHITE;
         this->matrix.Identity();
+        std::memset(&this->flags, 0, sizeof(this->flags));
         this->flags.isVisible = 1;
         this->flags.flag1 = 1;
         this->autoRotate = 0;
