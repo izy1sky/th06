@@ -63,8 +63,8 @@ bool MidiDevice::OpenDevice(u32 uDeviceId)
     connection.sourceAudioUnit = this->synthUnit;
     connection.sourceOutputNumber = 0;
     connection.destInputNumber = 0;
-    if (AudioUnitSetProperty(this->outputUnit, kAudioUnitProperty_MakeConnection, kAudioUnitScope_Input, 0,
-                             &connection, sizeof(connection)) != noErr)
+    if (AudioUnitSetProperty(this->outputUnit, kAudioUnitProperty_MakeConnection, kAudioUnitScope_Input, 0, &connection,
+                             sizeof(connection)) != noErr)
     {
         utils::DebugPrint2("error : couldn't connect the synth to the audio output\n");
         this->Close();
@@ -128,4 +128,3 @@ bool MidiDevice::SendLongMsg(const u8 *buf, u32 len)
 
     return MusicDeviceSysEx(this->synthUnit, buf, len) == noErr;
 }
-

@@ -22,4 +22,3 @@ struct MidiDevice
     AudioUnit synthUnit;
     AudioUnit outputUnit;
 };
-
