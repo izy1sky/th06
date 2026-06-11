@@ -14,7 +14,7 @@ Builds for the BSDs and other Unices are also almost certainly possible, but may
 - SDL2, SDL2-image, and SDL2-ttf support
 - C++20 standard library support
 - A little endian architecture (though big endian support is currently being worked on)
-- OpenGL ES 1.1, OpenGL 1.3, or GL ES 2.0 / WebGL support
+- OpenGL ES 1.1, OpenGL 1.3, or GL 2.1 / GL ES 2.0 / WebGL support
 
 ### Dependencies
 
