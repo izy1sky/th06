@@ -185,7 +185,7 @@ GfxInterface *WebGL::Create()
 
     // The ES profile request is not always honored,
     // so check if we really got it or the desktop one.
-    const GLubyte *(GLAPIENTRY *getString)(GLenum) =
+    const GLubyte *(GLAPIENTRY * getString)(GLenum) =
         (const GLubyte *(GLAPIENTRY *)(GLenum))SDL_GL_GetProcAddress("glGetString");
     const char *glVersion = getString != NULL ? (const char *)getString(GL_VERSION) : NULL;
     interface->glesContext = glVersion != NULL && std::strncmp(glVersion, "OpenGL ES", 9) == 0;
