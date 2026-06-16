@@ -156,7 +156,12 @@ GfxInterface *WebGL::Create()
 
     if (g_Supervisor.cfg.windowed == 0)
     {
+#ifndef __EMSCRIPTEN__
+        // In the browser the canvas IS the window; fullscreen would stretch the
+        // canvas to the screen and draw the 640x480 game into a corner (GL origin
+        // is bottom-left). Keep a fixed-size canvas instead.
         flags |= SDL_WINDOW_FULLSCREEN;
+#endif
     }
 
     SDL_Window *window = SDL_CreateWindow(TH_WINDOW_TITLE, x, y, width, height, flags);

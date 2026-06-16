@@ -14,6 +14,33 @@
 #include "i18n.hpp"
 #include "utils.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+// In the browser the game loop is driven by requestAnimationFrame rather than a
+// blocking while(true). emscripten_set_main_loop calls this once per frame.
+static void MainLoopIteration(void)
+{
+    SDL_Event e;
+
+    while (SDL_PollEvent(&e))
+    {
+        if (e.type == SDL_QUIT)
+        {
+            emscripten_cancel_main_loop();
+            return;
+        }
+    }
+
+    i32 rr = g_GameWindow.Render();
+    if (rr != 0)
+    {
+        printf("[th06-web] main loop exiting: Render() returned %d (frame=%u)\n", rr, g_GameWindow.curFrame);
+        emscripten_cancel_main_loop();
+    }
+}
+#endif
+
 int main(int argc, char *argv[])
 {
     (void)argc;
@@ -77,6 +104,13 @@ restart:
 
     g_GameWindow.curFrame = 0;
 
+#ifdef __EMSCRIPTEN__
+    // Pin to 60fps regardless of the display refresh rate. fps=0 would follow the
+    // monitor (e.g. 120Hz panels run the game at 120fps); an explicit 60 keeps the
+    // game at its intended speed everywhere. simulate_infinite_loop=1 keeps main()
+    // from returning so SDL/GL state stays alive.
+    emscripten_set_main_loop(MainLoopIteration, 60, 1);
+#else
     while (true)
     {
         SDL_Event e;
@@ -94,38 +128,8 @@ restart:
         {
             break;
         }
-
-        //        SDL_Delay(1000.0f / 60.0f);
-
-        //        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-        //        {
-        //            TranslateMessage(&msg);
-        //            DispatchMessage(&msg);
-        //        }
-        //        else
-        //        {
-        //            testCoopLevelRes = g_Supervisor.d3dDevice->TestCooperativeLevel();
-        //            if (testCoopLevelRes == D3D_OK)
-        //            {
-        //                renderResult = g_GameWindow.Render();
-        //                if (renderResult != 0)
-        //                {
-        //                    goto stop;
-        //                }
-        //            }
-        //            else if (testCoopLevelRes == D3DERR_DEVICENOTRESET)
-        //            {
-        //                g_AnmManager->ReleaseSurfaces();
-        //                testResetRes = g_Supervisor.d3dDevice->Reset(&g_Supervisor.presentParameters);
-        //                if (testResetRes != 0)
-        //                {
-        //                    goto stop;
-        //                }
-        //                GameWindow::InitD3dDevice();
-        //                g_Supervisor.unk198 = 3;
-        //            }
-        //        }
     }
+#endif
 
 stop:
     g_Chain.Release();

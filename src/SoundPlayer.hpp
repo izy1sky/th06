@@ -105,6 +105,12 @@ struct SoundPlayer
     i32 soundBuffersToPlay[3];
     MusicStream backgroundMusic;
     bool isLooping;
+#ifdef __EMSCRIPTEN__
+    // Per-frame software mixer bookkeeping (replaces the background mixer thread).
+    bool webAudioInited;
+    u64 webAudioStartTick;
+    u64 webAudioSamplesSent;
+#endif
 };
 
 extern SoundPlayer g_SoundPlayer;
