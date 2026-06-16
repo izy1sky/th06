@@ -8,6 +8,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_timer.h>
 #include <array>
+#include <cstdio>
 #include <cmath>
 #include <cstring>
 #include <new>
@@ -74,7 +75,16 @@ ZunResult SoundPlayer::InitializeDSound()
         goto fail;
     }
 
+#ifdef __EMSCRIPTEN__
+    this->webAudioInited = false;
+#endif
+
+#ifndef __EMSCRIPTEN__
+    // The background music thread uses a blocking while(1)+SDL_Delay polling loop,
+    // which cannot run on the browser's single main thread. Audio is silent on web
+    // until reworked onto WebAudio. See main loop / Phase 5.
     this->backgroundMusicThreadHandle = std::thread(&SoundPlayer::BackgroundMusicPlayerThread, this);
+#endif
 
     g_GameErrorContext.Log(TH_DBG_SOUNDPLAYER_INIT_SUCCESS);
     return ZUN_SUCCESS;
@@ -87,7 +97,9 @@ fail:
 ZunResult SoundPlayer::Release(void)
 {
     this->terminateFlag = true;
+#ifndef __EMSCRIPTEN__
     this->backgroundMusicThreadHandle.join();
+#endif
     this->terminateFlag = false;
 
     StopBGM();
@@ -466,6 +478,39 @@ void SoundPlayer::PlaySounds()
     }
 
     soundBufMutex.unlock();
+
+#ifdef __EMSCRIPTEN__
+    // No background mixer thread in the browser (single-threaded), so drive mixing
+    // from the per-frame main loop. Mirror BackgroundMusicPlayerThread's time-based
+    // logic: figure out how many per-channel samples should have played by now and
+    // queue the shortfall. MixAudio() takes a stereo (interleaved) sample count, so
+    // the per-channel target is multiplied by 2.
+    if (!this->webAudioInited)
+    {
+        this->webAudioStartTick = SDL_GetTicks64();
+        this->webAudioSamplesSent = 0;
+        this->webAudioInited = true;
+        SDL_PauseAudioDevice(this->audioDev, 0);
+    }
+
+    u64 nowTick = SDL_GetTicks64();
+    // 44.1 per-channel samples per millisecond at 44100 Hz, plus ~1 frame of lead.
+    int64_t targetSamples =
+        (int64_t)((nowTick - this->webAudioStartTick) * 44.100) - (int64_t)this->webAudioSamplesSent + 735;
+
+    // Don't let the queue grow unbounded if the tab was backgrounded.
+    if (SDL_GetQueuedAudioSize(this->audioDev) > 44100u * 2 * 2 / 5) // > ~200ms queued
+    {
+        this->webAudioSamplesSent += targetSamples > 0 ? targetSamples : 0;
+        targetSamples = 0;
+    }
+
+    if (targetSamples > 0)
+    {
+        this->MixAudio((u32)targetSamples * 2);
+        this->webAudioSamplesSent += targetSamples;
+    }
+#endif
 }
 
 void SoundPlayer::PlaySoundByIdx(SoundIdx idx)
