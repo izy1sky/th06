@@ -74,6 +74,9 @@ struct MusicStream
     u32 loopEnd;
     u32 fadeoutLen;
     u32 fadeoutProgress;
+#ifdef __EMSCRIPTEN__
+    void *oggPcm; // malloc'd PCM buffer backing srcWav.fileStream when BGM is OGG
+#endif
 };
 
 struct SoundPlayer

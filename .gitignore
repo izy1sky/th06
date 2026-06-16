@@ -22,3 +22,7 @@ compile_commands.json
 # Web build output: contains the 327MB th06.data asset bundle (copyrighted game
 # resources + BGM) and emscripten artifacts. Must never be committed.
 dist/
+
+# Local packaging artifacts (large, may contain bundled assets)
+dist.zip
+*.zip

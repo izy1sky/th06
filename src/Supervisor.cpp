@@ -657,7 +657,13 @@ ZunResult Supervisor::LoadConfig(const char *path)
         g_Supervisor.cfg.version = GAME_VERSION;
         g_Supervisor.cfg.padXAxis = 600;
         g_Supervisor.cfg.padYAxis = 600;
+#ifdef __EMSCRIPTEN__
+        // The web build ships compressed OGG BGM (decoded to PCM in SoundPlayer::LoadWav).
+        // Probe for the .ogg so WAV music mode is selected instead of falling back to MIDI.
+        wavFile = FileSystem::FopenUTF8("bgm/th06_01.ogg", "rb");
+#else
         wavFile = FileSystem::FopenUTF8("bgm/th06_01.wav", "rb");
+#endif
         if (wavFile != NULL)
         {
             g_Supervisor.cfg.musicMode = WAV;
@@ -690,7 +696,11 @@ ZunResult Supervisor::LoadConfig(const char *path)
             g_Supervisor.cfg.version = GAME_VERSION;
             g_Supervisor.cfg.padXAxis = 600;
             g_Supervisor.cfg.padYAxis = 600;
+#ifdef __EMSCRIPTEN__
+            wavFile2 = FileSystem::FopenUTF8("bgm/th06_01.ogg", "rb");
+#else
             wavFile2 = FileSystem::FopenUTF8("bgm/th06_01.wav", "rb");
+#endif
             if (wavFile2 != NULL)
             {
                 g_Supervisor.cfg.musicMode = WAV;
