@@ -93,7 +93,17 @@ RenderResult GameWindow::Render()
         this->curFrame++;
     }
 
+#ifdef __EMSCRIPTEN__
+    // The vsync/windowed branch busy-waits (returns without drawing until 16.7ms
+    // elapsed), relying on main()'s tight while(true) to spin. Under emscripten the
+    // loop is driven by requestAnimationFrame (~60Hz, one Render per callback), so
+    // that busy-wait throttles us to 30fps. Take the non-vsync branch instead: it
+    // presents one frame per call and uses effectiveFramerateMultiplier to keep game
+    // speed correct, which is exactly the externally-clocked model rAF provides.
+    if (false)
+#else
     if (g_Supervisor.cfg.windowed || g_Supervisor.ShouldRunAt60Fps())
+#endif
     {
         if (this->curFrame != 0)
         {

@@ -18,6 +18,10 @@ const char *GameErrorContext::Log(const char *fmt, ...)
 
     tmpBufferSize = std::strlen(tmpBuffer);
 
+#ifdef __EMSCRIPTEN__
+    std::printf("[th06-log] %s", tmpBuffer);
+#endif
+
     if (this->m_BufferEnd + tmpBufferSize < &this->m_Buffer[sizeof(this->m_Buffer) - 1])
     {
         std::strcpy(this->m_BufferEnd, tmpBuffer);
@@ -41,6 +45,10 @@ const char *GameErrorContext::Fatal(const char *fmt, ...)
     std::vsprintf(tmpBuffer, fmt, args);
 
     tmpBufferSize = std::strlen(tmpBuffer);
+
+#ifdef __EMSCRIPTEN__
+    std::printf("[th06-FATAL] %s", tmpBuffer);
+#endif
 
     if (this->m_BufferEnd + tmpBufferSize < &this->m_Buffer[sizeof(this->m_Buffer) - 1])
     {
