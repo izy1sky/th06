@@ -10,7 +10,17 @@
 #include <array>
 #include <cstdio>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
+
+#ifdef __EMSCRIPTEN__
+// Decode compressed OGG BGM to PCM at load time so the data bundle stays small.
+// MixAudio still streams raw PCM via SDL_RWops; we just wrap the decoded buffer.
+#define STB_VORBIS_NO_PUSHDATA_API
+#define STB_VORBIS_NO_INTEGER_CONVERSION
+#undef STB_VORBIS_NO_INTEGER_CONVERSION
+#include "thirdparty/stb_vorbis.c"
+#endif
 #include <new>
 #include <vector>
 
@@ -49,6 +59,9 @@ SoundPlayer::SoundPlayer()
 {
     // Note: memset of an std::mutex crashes on windows
     // std::memset(this, 0, sizeof(SoundPlayer));
+#ifdef __EMSCRIPTEN__
+    this->backgroundMusic.oggPcm = NULL;
+#endif
 }
 
 ZunResult SoundPlayer::InitializeDSound()
@@ -130,6 +143,14 @@ void SoundPlayer::StopBGM()
         this->soundBufMutex.lock();
         SDL_RWclose(this->backgroundMusic.srcWav.fileStream);
         this->backgroundMusic.srcWav.fileStream = NULL;
+#ifdef __EMSCRIPTEN__
+        // SDL_RWFromMem doesn't own the PCM buffer; free our decoded OGG here.
+        if (this->backgroundMusic.oggPcm != NULL)
+        {
+            std::free(this->backgroundMusic.oggPcm);
+            this->backgroundMusic.oggPcm = NULL;
+        }
+#endif
         this->soundBufMutex.unlock();
 
         utils::DebugPrint2("stop BGM\n");
@@ -165,6 +186,60 @@ ZunResult SoundPlayer::LoadWav(const char *path)
     this->StopBGM();
 
     utils::DebugPrint2("load BGM\n");
+
+#ifdef __EMSCRIPTEN__
+    // Try a compressed .ogg sibling first (e.g. bgm/th06_01.wav -> bgm/th06_01.ogg).
+    // stb_vorbis decodes the whole file to interleaved 16-bit PCM, which we wrap in
+    // an in-memory SDL_RWops so MixAudio reads it exactly like the original WAV stream.
+    {
+        char oggPath[512];
+        std::strncpy(oggPath, path, sizeof(oggPath) - 1);
+        oggPath[sizeof(oggPath) - 1] = '\0';
+        char *ext = std::strrchr(oggPath, '.');
+        if (ext != NULL && (size_t)(ext - oggPath) + 4 < sizeof(oggPath))
+        {
+            ext[1] = 'o';
+            ext[2] = 'g';
+            ext[3] = 'g';
+            ext[4] = '\0';
+
+            int channels = 0, sampleRate = 0;
+            short *pcm = NULL;
+            int perChannelSamples = stb_vorbis_decode_filename(oggPath, &channels, &sampleRate, &pcm);
+            if (perChannelSamples > 0 && pcm != NULL && channels == BACKGROUND_MUSIC_WAV_NUM_CHANNELS)
+            {
+                u32 byteLen = (u32)perChannelSamples * channels * sizeof(short);
+                // SDL_RWFromMem does not own the buffer; free the previous decode first.
+                if (this->backgroundMusic.oggPcm != NULL)
+                {
+                    std::free(this->backgroundMusic.oggPcm);
+                }
+                this->backgroundMusic.oggPcm = pcm;
+                SDL_RWops *memStream = SDL_RWFromMem(pcm, (int)byteLen);
+                if (memStream != NULL)
+                {
+                    this->backgroundMusic.srcWav.fileStream = memStream;
+                    this->backgroundMusic.srcWav.dataStartOffset = 0;
+                    this->backgroundMusic.srcWav.samples = (u32)perChannelSamples;
+                    this->backgroundMusic.loopStart = 0;
+                    this->backgroundMusic.loopEnd = (u32)perChannelSamples;
+                    this->backgroundMusic.fadeoutLen = 0;
+                    this->backgroundMusic.fadeoutProgress = 0;
+                    this->backgroundMusic.pos = 0;
+                    utils::DebugPrint2("load BGM (ogg, %d samples)\n", perChannelSamples);
+                    return ZUN_SUCCESS;
+                }
+                std::free(pcm);
+                this->backgroundMusic.oggPcm = NULL;
+            }
+            else if (pcm != NULL)
+            {
+                std::free(pcm);
+            }
+            // Fall through to the WAV path if no/invalid .ogg was found.
+        }
+    }
+#endif
 
     fileStream = SDL_RWFromFile(path, "r");
 
@@ -616,6 +691,13 @@ void SoundPlayer::MixAudio(u32 samples)
                 {
                     SDL_RWclose(this->backgroundMusic.srcWav.fileStream);
                     this->backgroundMusic.srcWav.fileStream = NULL;
+#ifdef __EMSCRIPTEN__
+                    if (this->backgroundMusic.oggPcm != NULL)
+                    {
+                        std::free(this->backgroundMusic.oggPcm);
+                        this->backgroundMusic.oggPcm = NULL;
+                    }
+#endif
 
                     break;
                 }
@@ -630,6 +712,13 @@ void SoundPlayer::MixAudio(u32 samples)
             {
                 SDL_RWclose(this->backgroundMusic.srcWav.fileStream);
                 this->backgroundMusic.srcWav.fileStream = NULL;
+#ifdef __EMSCRIPTEN__
+                if (this->backgroundMusic.oggPcm != NULL)
+                {
+                    std::free(this->backgroundMusic.oggPcm);
+                    this->backgroundMusic.oggPcm = NULL;
+                }
+#endif
             }
         }
 
