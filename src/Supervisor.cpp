@@ -1,4 +1,5 @@
 #include "Supervisor.hpp"
+#include "PointDevice.hpp"
 #include "AnmManager.hpp"
 #include "AsciiManager.hpp"
 #include "Chain.hpp"
@@ -51,7 +52,7 @@ ChainCallbackResult Supervisor::OnUpdate(Supervisor *s)
     //        g_SoundPlayer.backgroundMusic->UpdateFadeOut();
     //    }
     g_LastFrameInput = g_CurFrameInput;
-    g_CurFrameInput = Controller::GetInput();
+    g_CurFrameInput = Controller::GetInput() | PointDevice::AutotestInput();
     g_IsEigthFrameOfHeldInput = 0;
     if (g_LastFrameInput == g_CurFrameInput)
     {

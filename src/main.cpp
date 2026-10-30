@@ -7,6 +7,7 @@
 #include "FileSystem.hpp"
 #include "GameErrorContext.hpp"
 #include "GameWindow.hpp"
+#include "PointDevice.hpp"
 #include "SoundPlayer.hpp"
 #include "Stage.hpp"
 #include "Supervisor.hpp"
@@ -43,8 +44,7 @@ static void MainLoopIteration(void)
 
 int main(int argc, char *argv[])
 {
-    (void)argc;
-    (void)argv;
+    PointDevice::Init(argc, argv);
 
     i32 renderResult = 0;
     //    MSG msg;

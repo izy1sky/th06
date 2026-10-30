@@ -1,4 +1,5 @@
 #include "Gui.hpp"
+#include "PointDevice.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -624,6 +625,7 @@ ZunResult GuiImpl::RunMsg()
             {
                 g_Supervisor.PlayAudio(g_Stage.stdData->songPaths[this->msg.currentInstr->args.music]);
             }
+            PointDevice::OnMusicChanged(this->msg.currentInstr->args.music);
             break;
         case MSG_OPCODE_TEXTINTRO:
             args = &this->msg.currentInstr->args;
@@ -650,6 +652,7 @@ ZunResult GuiImpl::RunMsg()
             goto SKIP_TIME_INCREMENT;
         case MSG_OPCODE_MUSICFADEOUT:
             g_Supervisor.FadeOutMusic(4.0);
+            PointDevice::OnMusicChanged(-1);
             break;
         case MSG_OPCODE_STAGEEND:
             g_GameManager.guiScore = g_GameManager.score;
@@ -1254,6 +1257,7 @@ void Gui::DrawGameScene()
             g_AsciiManager.AddFormatText(&elemPos, "%d", g_GameManager.pointItemsCollectedInStage);
         }
     }
+    PointDevice::DrawHud();
     if (this->flags.flag0)
     {
         this->flags.flag0--;

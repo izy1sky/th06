@@ -1,4 +1,5 @@
 #include "EclManager.hpp"
+#include "PointDevice.hpp"
 #include "AnmManager.hpp"
 #include "EffectManager.hpp"
 #include "Enemy.hpp"
@@ -728,6 +729,7 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
                 g_BulletManager.TurnAllBulletsIntoPoints();
                 g_Stage.spellcardState = RUNNING;
                 g_Stage.ticksSinceSpellcardStarted = 0;
+                PointDevice::RequestCheckpoint();
                 enemy->bulletRankSpeedLow = -0.5f;
                 enemy->bulletRankSpeedHigh = 0.5f;
                 enemy->bulletRankAmount1Low = 0;
@@ -798,6 +800,10 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
                 break;
             case ECL_OPCODE_LIFECALLBACKTHRESHOLD:
                 enemy->lifeCallbackThreshold = instruction->args.setInt;
+                if (enemy->flags.isBoss)
+                {
+                    PointDevice::RequestCheckpoint();
+                }
                 break;
             case ECL_OPCODE_LIFECALLBACKSUB:
                 enemy->lifeCallbackSub = instruction->args.setInt;
