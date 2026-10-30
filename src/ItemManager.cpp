@@ -1,4 +1,5 @@
 #include "ItemManager.hpp"
+#include "PointDevice.hpp"
 
 #include "AnmManager.hpp"
 #include "AsciiManager.hpp"
@@ -289,7 +290,16 @@ void ItemManager::OnUpdate()
                 g_GameManager.IncreaseSubrank(5);
                 break;
             case ITEM_LIFE:
-                if (g_GameManager.livesRemaining < 8)
+                if (PointDevice::IsRunActive())
+                {
+                    // Lives mean nothing in Pointdevice Mode, so a 1UP gives a bomb instead.
+                    if (g_GameManager.bombsRemaining < 8)
+                    {
+                        g_GameManager.bombsRemaining++;
+                        g_Gui.flags.flag1 = 2;
+                    }
+                }
+                else if (g_GameManager.livesRemaining < 8)
                 {
                     g_GameManager.livesRemaining++;
                     g_Gui.flags.flag0 = 2;

@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Pointdevice sprite generator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@1,900&family=M+PLUS+1p:wght@800&family=Shippori+Mincho+B1:wght@800&family=Libre+Baskerville:wght@700&display=swap">
+<style>body{margin:0;background:#333;color:#fff;font-family:sans-serif}canvas{display:block;margin:8px;background:#808080}</style>
+</head>
+<body>
+<div id="log">loading fonts…</div>
+<script>
+// Every sprite is drawn at S x the game's 640x480 coordinates, so it stays
+// sharp when the window is scaled up. The game draws it at 1/S size.
+const S = 2;
+const JP = (px) => `800 ${px}px "M PLUS 1p"`;
+const TITLE = (px) => `italic 900 ${px}px "Nunito"`;
+const MIN = (px) => `800 ${px}px "Shippori Mincho B1"`;
+const SER = (px) => `700 ${px}px "Libre Baskerville"`;
+const measure = document.createElement('canvas').getContext('2d');
+function textW(font, t) { measure.font = font; return measure.measureText(t).width; }
+
+let sprites = [];
+// x0,y0: where the content origin sits inside the sprite (logical px);
+// w,h: logical sprite size; cw,ch: content size used for centring.
+function sprite(name, w, h, x0, y0, cw, ch, draw, extra) {
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(w * S); c.height = Math.ceil(h * S);
+  const g = c.getContext('2d');
+  g.scale(S, S); g.translate(x0, y0);
+  g.textBaseline = 'top';
+  draw(g);
+  sprites.push({ name, c, ox: x0, oy: y0, lw: w, lh: h, cw, ch, extra: extra || {} });
+}
+
+function fillText(g, font, text, x, y, fill, opts) {
+  opts = opts || {};
+  g.save();
+  g.font = font;
+  if (opts.alpha !== undefined) g.globalAlpha = opts.alpha;
+  if (opts.drop) { g.fillStyle = opts.drop.color; g.fillText(text, x + opts.drop.dx, y + opts.drop.dy); }
+  if (opts.glow) {
+    for (const gl of opts.glow) {
+      g.save(); g.shadowColor = gl.color; g.shadowBlur = gl.blur * S; g.fillStyle = gl.color;
+      g.fillText(text, x, y); g.restore();
+    }
+  }
+  if (opts.outline) { g.lineJoin = 'round'; g.lineWidth = opts.outline.width * 2; g.strokeStyle = opts.outline.color; g.strokeText(text, x, y); }
+  g.fillStyle = fill; g.fillText(text, x, y);
+  if (opts.stroke) { g.lineWidth = opts.stroke.width; g.strokeStyle = opts.stroke.color; g.strokeText(text, x, y); }
+  g.restore();
+}
+
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r);
+  g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + r, y + h);
+  g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath();
+}
+
+// A string of glyph sprites (digits etc.) so numbers can be assembled at run time.
+function glyphs(prefix, chars, font, fill, opts, pad) {
+  for (const ch of chars) {
+    const w = textW(font, ch);
+    const name = prefix + (ch === ',' ? 'comma' : ch === '(' ? 'lp' : ch === ')' ? 'rp' : ch === '点' ? 'ten' : ch);
+    sprite(name, w + 2 * pad, 30 + 2 * pad, pad, pad, w, 20, (g) => fillText(g, font, ch, 0, 0, fill, opts));
+  }
+}
+
+// ---------------------------------------------------------------- th06
+function th06() {
+  sprites = [];
+  const hdr = (name, text) => {
+    const w = textW(JP(25), text);
+    sprite(name, w + 24, 34 + 24, 12, 12, w, 34, (g) => fillText(g, JP(25), text, 0, 0, '#ffe6ec',
+      { glow: [{ color: '#ff2a4a', blur: 6 }, { color: '#ff2a4a', blur: 3 }, { color: '#ff2a4a', blur: 1 }] }));
+  };
+  hdr('hdr_rule', 'ルールを選択してね');
+  hdr('hdr_saved', '中断データがあります');
+
+  const card = (name, on, title, grad, strokeColor, desc, note) => {
+    sprite(name, 240 + 40, 80 + 40, 20, 20, 240, 80, (g) => {
+      g.save();
+      roundRect(g, 0, 0, 240, 80, 4);
+      if (on) {
+        g.shadowColor = 'rgba(255,255,255,0.7)'; g.shadowBlur = 14 * S;
+        g.fillStyle = 'rgba(255,255,255,0.94)'; g.fill(); g.fill();
+      } else {
+        g.fillStyle = 'rgba(150,150,160,0.55)'; g.fill();
+      }
+      g.restore();
+      const gr = g.createLinearGradient(0, 4, 0, 34);
+      gr.addColorStop(0, grad[0]); gr.addColorStop(1, grad[1]);
+      fillText(g, TITLE(28), title, 8, 1, gr, { stroke: { width: 1, color: strokeColor }, alpha: on ? 1 : 0.75 });
+      const ink = on ? '#000' : '#262626';
+      if (desc) fillText(g, JP(14), desc, 8, 36, ink);
+      if (note) fillText(g, JP(14), note, 240 - 10 - textW(JP(14), note), 56, ink);
+    });
+  };
+  const GOLD = ['#fff4a8', '#d98a00'], SILVER = ['#e6eeff', '#56648c'], GREEN = ['#d8ffe4', '#2a9a52'];
+  for (const on of [true, false]) {
+    const s = on ? 'on' : 'off';
+    card('card_pd_' + s, on, 'Pointdevice', GOLD, '#7a4a00', '被弾しても何度でもやり直せます', '(チェックポイント制)');
+    card('card_legacy_' + s, on, 'Legacy', SILVER, '#2a3350', '残機・コンティニューの通常ルール', '(スコア・リプレイ記録)');
+    card('card_cont_' + s, on, 'Continue', GOLD, '#7a4a00', '', '');
+    card('card_new_' + s, on, 'New Game', GREEN, '#134a26', 'はじめから遊びます', '(中断データは残ります)');
+  }
+  const stage06 = (n) => n <= 6 ? `Stage ${n}` : 'Extra Stage';
+  for (let n = 1; n <= 7; n++) {
+    const t = `${stage06(n)} の最初から再開します`;
+    const w = textW(JP(14), t);
+    sprite('cont_desc_' + n, w + 4, 24, 2, 2, w, 20, (g) => fillText(g, JP(14), t, 0, 0, '#000'));
+  }
+  glyphs('card_', '0123456789,()点', JP(14), '#000', {}, 2);
+
+  // In-game menus: th06's own pause menu look.
+  const small = (name, text) => {
+    const w = textW(JP(13), text);
+    sprite(name, w + 8, 26, 3, 3, w, 18, (g) => fillText(g, JP(13), text, 0, 0, '#d8d8d8', { drop: { color: '#000', dx: 1, dy: 1 } }));
+  };
+  const title = (name, text) => {
+    const w = textW(JP(26), text);
+    sprite(name, w + 12, 46, 5, 5, w, 36, (g) => fillText(g, JP(26), text, 0, 0, '#fff',
+      { drop: { color: '#202020', dx: 2, dy: 2 }, glow: [{ color: '#000', blur: 2 }] }));
+  };
+  const opt = (name, text) => {
+    let w = textW(JP(25), text);
+    sprite(name + '_on', w + 12, 46, 5, 5, w, 36, (g) => fillText(g, JP(25), text, 0, 0, '#ff8080',
+      { drop: { color: '#3a1010', dx: 2, dy: 2 }, glow: [{ color: '#000', blur: 2 }] }));
+    w = textW(JP(21), text);
+    sprite(name + '_off', w + 12, 40, 5, 5, w, 30, (g) => fillText(g, JP(21), text, 0, 0, 'rgba(150,150,150,0.75)',
+      { drop: { color: 'rgba(0,0,0,0.5)', dx: 2, dy: 2 } }));
+  };
+  title('title_hit', '被弾');
+  title('title_pause', '一時停止');
+  small('retry_pre', 'リトライ ');
+  small('retry_post', '回目');
+  glyphs('small_', '0123456789', JP(13), '#d8d8d8', { drop: { color: '#000', dx: 1, dy: 1 } }, 3);
+  opt('opt_retry', 'チェックポイントから再開');
+  opt('opt_giveup', 'あきらめる');
+  opt('opt_resume', '一時停止解除');
+  opt('opt_savequit', 'セーブしてタイトルへ');
+  opt('opt_quit', 'タイトルへ戻る');
+  for (let n = 1; n <= 7; n++) small('hint_' + n, `次回は ${stage06(n)} の最初から`);
+  return sprites;
+}
+
+// ---------------------------------------------------------------- th07
+function wisp(g, x, y, on) {
+  g.save();
+  g.translate(x, y);
+  g.filter = `blur(${3 * S}px)`;
+  g.globalAlpha = on ? 0.92 : 0.9 * 0.45;
+  g.fillStyle = on ? '#ffffff' : '#f2d6ea';
+  g.beginPath();
+  g.moveTo(14, 56);
+  g.bezierCurveTo(40, 30, 120, 34, 210, 30);
+  g.bezierCurveTo(262, 28, 300, 18, 308, 30);
+  g.bezierCurveTo(314, 42, 296, 50, 262, 52);
+  g.bezierCurveTo(190, 58, 100, 76, 40, 72);
+  g.bezierCurveTo(12, 70, 4, 62, 14, 56);
+  g.closePath(); g.fill();
+  g.restore();
+  if (on) { g.fillStyle = '#1a2a4a'; g.beginPath(); g.arc(x + 300, y + 30, 5, 0, Math.PI * 2); g.fill(); }
+}
+const BLACK1 = { width: 1, color: '#000' };
+
+function th07() {
+  sprites = [];
+  const hdr = (name, l1, l2) => {
+    const w1 = textW(MIN(20), l1), w2 = textW(SER(15), l2);
+    const cw = Math.max(w1, w2 + 70);
+    sprite(name, cw + 16, 52 + 16, 8, 8, cw, 52, (g) => {
+      fillText(g, MIN(20), l1, (cw - w1) / 2, 0, '#fff', { outline: BLACK1 });
+      fillText(g, SER(15), l2, (cw - (w2 + 70)) / 2 + 70, 26, '#fff', { outline: BLACK1 });
+    });
+  };
+  hdr('hdr_rule', '遊び方を選択すること', 'Choose Rule.');
+  hdr('hdr_saved', '中断データがあること', 'Saved Run.');
+
+  // Origin = top-left of the kanji; the wisp sits 30 px left of and 30 px below it.
+  const item = (name, on, kanji, en, desc) => {
+    sprite(name, 360, 136, 40, 6, 300, 120, (g) => {
+      wisp(g, -30, 30, on);
+      if (on) {
+        fillText(g, MIN(34), kanji, 0, 0, '#fff', { glow: [{ color: '#7fe8ff', blur: 6 }], outline: BLACK1 });
+        fillText(g, SER(16), en, 28, 35, '#000', { glow: [{ color: '#fff', blur: 2 }, { color: '#fff', blur: 2 }] });
+        if (desc) fillText(g, JP(12), desc, 0, 61, '#fff', { outline: BLACK1 });
+      } else {
+        g.globalAlpha = 0.55;
+        fillText(g, MIN(34), kanji, 0, 0, '#cfd8ea', { outline: BLACK1 });
+        fillText(g, SER(16), en, 28, 35, '#d9c4d4');
+        if (desc) fillText(g, JP(12), desc, 0, 61, '#d9c4d4');
+      }
+    });
+  };
+  for (const on of [true, false]) {
+    const s = on ? 'on' : 'off';
+    item('item_pd_' + s, on, '完全無欠', 'Pointdevice Mode', '被弾してもチェックポイントからやり直す方向け');
+    item('item_legacy_' + s, on, '従来', 'Legacy Mode', '残機制で普通に遊ぶ方向け');
+    item('item_cont_' + s, on, '続行', 'Continue', '');
+    item('item_new_' + s, on, '最初', 'New Game', '中断データは次にセーブするまで残る');
+  }
+  const stage07 = (n) => n <= 6 ? `Stage ${n}` : n === 7 ? 'Extra Stage' : 'Phantasm Stage';
+  for (let n = 1; n <= 8; n++) {
+    const t = `${stage07(n)} の最初から再開する方向け`;
+    const w = textW(JP(12), t);
+    sprite('cont_desc_' + n, w + 6, 24, 3, 3, w, 18, (g) => fillText(g, JP(12), t, 0, 0, '#fff', { outline: BLACK1 }));
+  }
+  glyphs('desc_', '0123456789,()点', JP(12), '#fff', { outline: BLACK1 }, 3);
+
+  // In-game menus: th07's own pause menu look.
+  const block = (name, jp, en, on, extra) => {
+    const wj = textW(JP(22), jp), we = textW(SER(13), en);
+    const cw = Math.max(wj, 46 + we);
+    sprite(name, cw + 12, 48 + 12, 6, 6, cw, 48, (g) => {
+      if (on) {
+        fillText(g, JP(22), jp, 0, 0, '#fff', { outline: BLACK1 });
+        fillText(g, SER(13), en, 46, 25, extra === 'title' ? '#e8e8f0' : '#fff', { glow: [{ color: '#445', blur: 2 }] });
+      } else {
+        g.globalAlpha = 0.5;
+        fillText(g, JP(22), jp, 0, 0, '#9aa6b8');
+        fillText(g, SER(13), en, 46, 25, '#c8d0dc');
+      }
+    }, { enEnd: 46 + we });
+  };
+  block('title_hit', '被弾', 'Miss  ·  Retry', true, 'title');
+  block('title_pause', '一時停止', 'Pause', true, 'title');
+  glyphs('serif_', '0123456789', SER(13), '#e8e8f0', { glow: [{ color: '#445', blur: 2 }] }, 3);
+  const opt = (name, jp, en) => { block(name + '_on', jp, en, true); block(name + '_off', jp, en, false); };
+  opt('opt_retry', 'チェックポイントから再開', 'Retry from Checkpoint');
+  opt('opt_giveup', 'あきらめる', 'Give Up');
+  opt('opt_resume', 'ゲームを再開', 'Return to Game');
+  opt('opt_savequit', 'セーブして終了', 'Save and Quit to Title');
+  opt('opt_quit', 'タイトルに戻る', 'Quit and Return to Title');
+  for (let n = 1; n <= 8; n++) {
+    const t = `次回は ${stage07(n)} の最初から`;
+    const w = textW(JP(12), t);
+    sprite('hint_' + n, w + 6, 24, 3, 3, w, 18, (g) => fillText(g, JP(12), t, 0, 0, '#fff', { outline: BLACK1 }));
+  }
+  return sprites;
+}
+
+// Shelf-pack into a power-of-two atlas and send it to the local server.
+async function pack(name, list) {
+  const W = 2048;
+  let x = 0, y = 0, rowH = 0;
+  const placed = [];
+  const sorted = [...list].sort((a, b) => b.c.height - a.c.height);
+  for (const s of sorted) {
+    if (x + s.c.width + 2 > W) { x = 0; y += rowH + 2; rowH = 0; }
+    placed.push({ s, x, y });
+    x += s.c.width + 2; rowH = Math.max(rowH, s.c.height);
+  }
+  let H = 1; while (H < y + rowH) H *= 2;
+  const atlas = document.createElement('canvas');
+  atlas.width = W; atlas.height = H;
+  const g = atlas.getContext('2d');
+  const rects = {};
+  for (const p of placed) {
+    g.drawImage(p.s.c, p.x, p.y);
+    rects[p.s.name] = { x: p.x, y: p.y, w: p.s.c.width, h: p.s.c.height, ox: p.s.ox, oy: p.s.oy, lw: p.s.lw, lh: p.s.lh,
+      cw: p.s.cw, ch: p.s.ch, ...p.s.extra };
+  }
+  document.body.appendChild(atlas);
+  const res = await fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, png: atlas.toDataURL('image/png'), rects, size: [W, H], scale: S }) });
+  return `${name}: ${W}x${H}, ${list.length} sprites, ${await res.text()}`;
+}
+
+(async () => {
+  await Promise.all([JP(20), TITLE(28), MIN(20), SER(15)].map((f) => document.fonts.load(f, 'あ漢Aa')));
+  await document.fonts.load(JP(20), 'ルールを選択してね中断データがあります被弾一時停止');
+  await document.fonts.load(MIN(20), '遊び方を選択すること完全無欠従来続行最初');
+  await document.fonts.ready;
+  const out = [];
+  out.push(await pack('th06_menu', th06()));
+  out.push(await pack('th07_menu', th07()));
+  document.getElementById('log').textContent = out.join(' | ');
+  window.__done = out.join(' | ');
+})();
+</script>
+</body>
+</html>

@@ -13,8 +13,8 @@
 //
 // After each death a menu asks whether to continue from the checkpoint or give
 // up. In a Pointdevice run, ESC opens a pause menu that can save and quit: the
-// saved run (difficulty, character, current stage and the stats the stage
-// started with) can be resumed from the title screen with R.
+// saved run (current stage and the stats the stage started with) is offered
+// again the next time the same difficulty, character and shot type are picked.
 //
 // Pointdevice runs never save replays (a rewind breaks replay sync) and never
 // write score.dat, so legacy records stay untouched.
@@ -24,9 +24,20 @@ namespace PointDevice
 void Init(int argc, char *argv[]);
 bool IsEnabled();
 
-// Title screen: P toggles the mode, R resumes a saved run. Returns true when a
-// saved run was launched, in which case the main menu must remove itself.
-bool MenuUpdate();
+// Mode choice, shown after the shot type is picked: Pointdevice or Legacy,
+// then (for Pointdevice) whether to resume the saved run for this difficulty,
+// character and shot type.
+enum ModeSelectResult
+{
+    MODE_SELECT_OPEN,
+    MODE_SELECT_CANCELLED,
+    MODE_SELECT_START,
+};
+void OpenModeSelect();
+bool IsModeSelectOpen();
+ModeSelectResult UpdateModeSelect();
+// Called right before the main menu starts the game; applies a chosen resume.
+void OnGameLaunch();
 void OnReturnToMenu();
 
 // Called from GameManager::AddedCallback for every stage.
@@ -51,11 +62,14 @@ bool OnDeathFinished();
 
 void OnMusicChanged(i32 songIdx);
 void DrawHud();
+// From AsciiManager::OnDrawMenus, after everything else: the mode choice and
+// the death and pause menus.
+void DrawMenus();
 
 // Test autopilot (TH06_POINTDEVICE_AUTOTEST=1): taps Z through the menus, then
 // sways left and right while shooting in-game, and continues after each death.
 // =giveup gives up at the first death instead. =savequit never dies, saves and
-// quits early in Stage 2, then resumes the saved run from the title screen.
+// quits early in Stage 2, then resumes the saved run.
 // =hold leaves the first menu open, for screenshots.
 u16 AutotestInput();
 }; // namespace PointDevice

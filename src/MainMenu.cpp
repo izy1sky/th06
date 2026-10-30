@@ -55,6 +55,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
     f32 local_48;
     i32 local_4c;
     u32 chosenStage;
+    bool modeChosen = false;
     ZunVec3 pos1;
     ZunVec3 pos2;
     ZunVec3 pos3;
@@ -116,10 +117,6 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
         menu->idleFrames = 0;
     case STATE_MAIN_MENU:
         menu->DrawStartMenu();
-        if (PointDevice::MenuUpdate())
-        {
-            return CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB;
-        }
         if ((g_CurFrameInput & 0xffff) != 0)
         {
             menu->idleFrames = 0;
@@ -596,7 +593,19 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
         }
         break;
     case STATE_SHOT_SELECT:
-        MoveCursor(menu, 2);
+        // The Pointdevice / Legacy choice sits on top of the shot type screen.
+        if (PointDevice::IsModeSelectOpen())
+        {
+            if (PointDevice::UpdateModeSelect() != PointDevice::MODE_SELECT_START)
+            {
+                break;
+            }
+            modeChosen = true;
+        }
+        if (!modeChosen)
+        {
+            MoveCursor(menu, 2);
+        }
         if (g_GameManager.difficulty == EXTRA &&
             g_GameManager.HasReachedMaxClears(g_GameManager.character, menu->cursor) == 0)
         {
@@ -643,11 +652,11 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
                 memcpy(&vmList->posOffset, &pos5, sizeof(ZunVec3));
             }
         }
-        if (30 > menu->stateTimer)
+        if (30 > menu->stateTimer && !modeChosen)
         {
             break;
         }
-        if (WAS_PRESSED(TH_BUTTON_RETURNMENU))
+        if (!modeChosen && WAS_PRESSED(TH_BUTTON_RETURNMENU))
         {
             menu->gameState = STATE_CHARACTER_SELECT;
             menu->stateTimer = 0;
@@ -680,9 +689,14 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
             }
             break;
         }
-        else if (WAS_PRESSED(TH_BUTTON_SELECTMENU))
+        else if (modeChosen || WAS_PRESSED(TH_BUTTON_SELECTMENU))
         {
             g_GameManager.shotType = menu->cursor;
+            if (!modeChosen)
+            {
+                PointDevice::OpenModeSelect();
+                break;
+            }
             if (g_GameManager.isInPracticeMode == 0)
             {
                 if (g_GameManager.difficulty < 4)
@@ -701,6 +715,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
                     g_GameManager.livesRemaining = 2;
                     g_GameManager.bombsRemaining = 3;
                 }
+                PointDevice::OnGameLaunch();
                 g_Supervisor.curState = 2;
                 g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
                 g_GameManager.isInReplay = 0;

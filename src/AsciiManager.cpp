@@ -1,4 +1,5 @@
 #include "AsciiManager.hpp"
+#include "PointDevice.hpp"
 #include "StageMenu.hpp"
 
 #include "AnmManager.hpp"
@@ -60,6 +61,7 @@ ChainCallbackResult AsciiManager::OnUpdate(AsciiManager *mgr)
 
 ChainCallbackResult AsciiManager::OnDrawMenus(AsciiManager *mgr)
 {
+    PointDevice::DrawMenus();
     mgr->DrawStrings();
     mgr->numStrings = 0;
     mgr->gameMenu.OnDrawGameMenu();
