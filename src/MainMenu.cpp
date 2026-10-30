@@ -4,6 +4,7 @@
 // #include <windows.h>
 
 #include "MainMenu.hpp"
+#include "PointDevice.hpp"
 
 #include "AnmManager.hpp"
 #include "AsciiManager.hpp"
@@ -115,6 +116,10 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
         menu->idleFrames = 0;
     case STATE_MAIN_MENU:
         menu->DrawStartMenu();
+        if (PointDevice::MenuUpdate())
+        {
+            return CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB;
+        }
         if ((g_CurFrameInput & 0xffff) != 0)
         {
             menu->idleFrames = 0;
@@ -2201,6 +2206,7 @@ ZunResult MainMenu::AddedCallback(MainMenu *m)
     ScoreDat *scoredat;
     AnmManager *anmmgr;
 
+    PointDevice::OnReturnToMenu();
     anmmgr = g_AnmManager;
 
     for (i = 0; i < ANM_OFFSET_TITLE01S - ANM_OFFSET_TITLE01; i++)

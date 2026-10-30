@@ -1,4 +1,5 @@
 #include "ResultScreen.hpp"
+#include "PointDevice.hpp"
 #include "AnmManager.hpp"
 #include "AsciiManager.hpp"
 #include "BulletManager.hpp"
@@ -753,7 +754,7 @@ i32 ResultScreen::HandleReplaySaveKeyboard()
     case RESULT_SCREEN_STATE_SAVE_REPLAY_QUESTION:
         if (this->frameTimer == 60)
         {
-            if (g_GameManager.numRetries != 0)
+            if (g_GameManager.numRetries != 0 || PointDevice::IsRunActive())
             {
                 saveInterrupt = 0xc;
             }
@@ -2153,7 +2154,10 @@ ZunResult ResultScreen::DeletedCallback(ResultScreen *resultScreen)
 
     if (resultScreen->scoreDat != NULL)
     {
-        ResultScreen::WriteScore(resultScreen);
+        if (!PointDevice::IsRunActive())
+        {
+            ResultScreen::WriteScore(resultScreen);
+        }
         ResultScreen::ReleaseScoreDat(resultScreen->scoreDat);
     }
 

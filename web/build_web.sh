@@ -58,6 +58,7 @@ SOURCES=(
   "$SRC"/MidiOutput.cpp
   "$SRC"/MusicRoom.cpp
   "$SRC"/Player.cpp
+  "$SRC"/PointDevice.cpp
   "$SRC"/ReplayManager.cpp
   "$SRC"/ResultScreen.cpp
   "$SRC"/Rng.cpp
