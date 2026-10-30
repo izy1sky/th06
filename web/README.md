@@ -29,17 +29,25 @@ bash web/build_web.sh           # 发布版 (-O2)
 DEBUG=1 bash web/build_web.sh   # 调试版 (ASSERTIONS + 符号)
 ```
 
+Windows (PowerShell): `.\web\build_web.ps1` (调试版加 `-Debug`),然后 `.\web\serve_web.ps1`。完整步骤见根目录 `POINTDEVICE.md`。
+
 产物在 `dist/th06.{html,js,wasm,data}` (data 含资源,已被 .gitignore 排除)。
 
 ## 运行
 
+构建脚本会自动把 `web/play.html`(页面唯一源)复制为 `dist/index.html` 与 `dist/play.html`,
+直接起服务即可:
+
 ```bash
-cp web/play.html dist/play.html
 cd dist && python3 -m http.server 8000
-# 浏览器打开 http://localhost:8000/play.html
+# 浏览器打开 http://localhost:8000/   (入口 index.html)
 ```
 
-操作: 方向键移动 · Z 射击 · X 炸弹 · Shift 低速 · Shift+Enter 切换全屏 · **点击画面后键盘才生效**。
+> 页面只维护 `web/play.html` 一份。`index.html` 是发布产物(平台默认入口),不要手改 dist 里的副本。
+
+操作:
+- **键盘**: 方向键移动 · Z 射击 · X 炸弹 · Shift 低速 · Shift+Enter 切换全屏 · **点击画面后键盘才生效**。
+- **触摸设备**: 自动显示虚拟按键 —— 左下摇杆移动(支持斜向),右下 射击/炸弹/低速,右上 决定/菜单。
 
 ## emscripten 适配改动 (均 `#ifdef __EMSCRIPTEN__` 隔离, 原生构建零影响)
 
@@ -47,4 +55,4 @@ cd dist && python3 -m http.server 8000
 - `src/SoundPlayer.cpp/.hpp` — 跳过阻塞式音频线程,改为每帧时间基准软件混音 (WAV BGM)。
 - `src/graphics/WebGL.cpp` — emscripten 下不请求全屏 (canvas 即窗口)。
 - `src/GameErrorContext.cpp` — 游戏日志转发到浏览器 console。
-- `web/play.html` — canvas 等比例缩放 + 全屏切换 + desynchronized 低延迟渲染。
+- `web/play.html` — canvas 等比例缩放 + 全屏切换 + desynchronized 低延迟渲染;触摸设备虚拟按键(合成 `KeyboardEvent`,无需改 C++)。
