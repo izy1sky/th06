@@ -5,6 +5,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #include "AsciiManager.hpp"
 #include "BulletManager.hpp"
@@ -184,28 +187,83 @@ static State g_State;
         std::fputc('\n', stderr);                                                                                     \
     }
 
-static void LoadSave()
+#ifdef __EMSCRIPTEN__
+// The web build keeps its files in memory only, so the saved run lives in
+// localStorage (as hex) to survive a page reload.
+#define PD_SAVE_STORAGE_KEY "th06.pointdevice.sav"
+
+static bool ReadSaveBytes(SaveData *save)
+{
+    return EM_ASM_INT(
+               {
+                   var hex = null;
+                   try
+                   {
+                       hex = window.localStorage.getItem(UTF8ToString($0));
+                   }
+                   catch (e)
+                   {
+                   }
+                   if (!hex || hex.length != $2 * 2)
+                       return 0;
+                   for (var i = 0; i < $2; i++)
+                       HEAPU8[$1 + i] = parseInt(hex.substr(i * 2, 2), 16);
+                   return 1;
+               },
+               PD_SAVE_STORAGE_KEY, save, (i32)sizeof(*save)) != 0;
+}
+
+static bool WriteSaveBytes(const SaveData *save)
+{
+    return EM_ASM_INT(
+               {
+                   var hex = "";
+                   for (var i = 0; i < $2; i++)
+                       hex += (HEAPU8[$1 + i] + 0x100).toString(16).substr(1);
+                   try
+                   {
+                       window.localStorage.setItem(UTF8ToString($0), hex);
+                       return 1;
+                   }
+                   catch (e)
+                   {
+                       return 0;
+                   }
+               },
+               PD_SAVE_STORAGE_KEY, save, (i32)sizeof(*save)) != 0;
+}
+
+static void RemoveSaveBytes()
+{
+    EM_ASM(
+        {
+            try
+            {
+                window.localStorage.removeItem(UTF8ToString($0));
+            }
+            catch (e)
+            {
+            }
+        },
+        PD_SAVE_STORAGE_KEY);
+}
+#else
+static bool ReadSaveBytes(SaveData *save)
 {
     FILE *file;
-    SaveData save;
+    bool ok;
 
-    g_State.hasSave = false;
     file = std::fopen(PD_SAVE_FILE, "rb");
     if (file == NULL)
     {
-        return;
+        return false;
     }
-    if (std::fread(&save, sizeof(save), 1, file) == 1 && save.magic == PD_SAVE_MAGIC &&
-        save.version == PD_SAVE_VERSION && save.character < 2 && save.shotType < 2 && save.difficulty <= EXTRA &&
-        save.stage >= 1 && save.stage <= 7)
-    {
-        g_State.save = save;
-        g_State.hasSave = true;
-    }
+    ok = std::fread(save, sizeof(*save), 1, file) == 1;
     std::fclose(file);
+    return ok;
 }
 
-static bool WriteSave()
+static bool WriteSaveBytes(const SaveData *save)
 {
     FILE *file;
     bool ok;
@@ -215,20 +273,44 @@ static bool WriteSave()
     {
         return false;
     }
-    ok = std::fwrite(&g_State.stageStart, sizeof(g_State.stageStart), 1, file) == 1;
-    ok = std::fclose(file) == 0 && ok;
-    if (ok)
+    ok = std::fwrite(save, sizeof(*save), 1, file) == 1;
+    return std::fclose(file) == 0 && ok;
+}
+
+static void RemoveSaveBytes()
+{
+    std::remove(PD_SAVE_FILE);
+}
+#endif
+
+static void LoadSave()
+{
+    SaveData save;
+
+    g_State.hasSave = false;
+    if (ReadSaveBytes(&save) && save.magic == PD_SAVE_MAGIC && save.version == PD_SAVE_VERSION &&
+        save.character < 2 && save.shotType < 2 && save.difficulty <= EXTRA && save.stage >= 1 && save.stage <= 7)
     {
-        g_State.save = g_State.stageStart;
+        g_State.save = save;
         g_State.hasSave = true;
     }
-    return ok;
+}
+
+static bool WriteSave()
+{
+    if (!WriteSaveBytes(&g_State.stageStart))
+    {
+        return false;
+    }
+    g_State.save = g_State.stageStart;
+    g_State.hasSave = true;
+    return true;
 }
 
 // A saved run is used up when it is resumed.
 static void DeleteSave()
 {
-    std::remove(PD_SAVE_FILE);
+    RemoveSaveBytes();
     g_State.hasSave = false;
 }
 
@@ -341,7 +423,7 @@ bool MenuUpdate()
     g_AsciiManager.AddFormatText(&pos, "Pointdevice Mode %s  (P)", g_State.enabled ? "ON " : "OFF");
     if (g_State.hasSave)
     {
-        pos = ZunVec3(16.0f, 436.0f, 0.0f);
+        pos = ZunVec3(16.0f, 412.0f, 0.0f);
         g_AsciiManager.SetColor(COLOR_LIGHTCYAN);
         g_AsciiManager.AddFormatText(&pos, "Saved run: Stage %d %s %c %s  (R)", g_State.save.stage,
                                      g_State.save.character == 0 ? "Reimu" : "Marisa",
@@ -841,20 +923,20 @@ static void DrawMenu()
     items = g_State.menu == MENU_DEATH ? deathItems : pauseItems;
     count = MenuItemCount();
 
-    pos = ZunVec3(GAME_REGION_LEFT + 80.0f, 176.0f, 0.0f);
+    pos = ZunVec3(GAME_REGION_LEFT + 24.0f, 176.0f, 0.0f);
     g_AsciiManager.SetColor(COLOR_LIGHT_RED);
     g_AsciiManager.AddString(&pos, g_State.menu == MENU_DEATH ? "Hit!" : "Paused");
     for (i = 0; i < count; i++)
     {
-        pos = ZunVec3(GAME_REGION_LEFT + 80.0f, 216.0f + 24.0f * i, 0.0f);
+        pos = ZunVec3(GAME_REGION_LEFT + 24.0f, 216.0f + 24.0f * i, 0.0f);
         g_AsciiManager.SetColor(i == g_State.menuCursor ? COLOR_WHITE : COLOR_GREY);
         g_AsciiManager.AddFormatText(&pos, "%c %s", i == g_State.menuCursor ? '>' : ' ', items[i]);
     }
     if (g_State.menu == MENU_PAUSE && g_State.menuCursor == PAUSE_MENU_SAVE_AND_QUIT)
     {
-        pos = ZunVec3(GAME_REGION_LEFT + 80.0f, 216.0f + 24.0f * count + 16.0f, 0.0f);
+        pos = ZunVec3(GAME_REGION_LEFT + 24.0f, 216.0f + 24.0f * count + 16.0f, 0.0f);
         g_AsciiManager.SetColor(COLOR_LIGHTCYAN);
-        g_AsciiManager.AddFormatText(&pos, "Resume at the start of Stage %d", g_State.stageStart.stage);
+        g_AsciiManager.AddFormatText(&pos, "Back to Stage %d start", g_State.stageStart.stage);
     }
 }
 
