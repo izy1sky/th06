@@ -157,6 +157,35 @@ void SoundPlayer::StopBGM()
     }
 }
 
+bool SoundPlayer::GetBgmPosition(u32 *pos)
+{
+    std::lock_guard<std::mutex> lock(this->soundBufMutex);
+
+    if (this->backgroundMusic.srcWav.fileStream == NULL)
+    {
+        return false;
+    }
+    *pos = this->backgroundMusic.pos;
+    return true;
+}
+
+void SoundPlayer::SeekBgm(u32 pos)
+{
+    std::lock_guard<std::mutex> lock(this->soundBufMutex);
+
+    if (this->backgroundMusic.srcWav.fileStream == NULL)
+    {
+        return;
+    }
+    if (pos >= this->backgroundMusic.loopEnd)
+    {
+        pos = this->backgroundMusic.loopStart;
+    }
+    this->backgroundMusic.pos = pos;
+    SDL_RWseek(this->backgroundMusic.srcWav.fileStream, this->backgroundMusic.srcWav.dataStartOffset + pos * 4,
+               SEEK_SET);
+}
+
 void SoundPlayer::FadeOut(f32 seconds)
 {
     if (this->backgroundMusic.srcWav.fileStream != NULL)

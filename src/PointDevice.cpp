@@ -90,6 +90,9 @@ struct Snapshot
     std::vector<AnmVm> stageQuadVms;
     std::vector<i8> stageObjectFlags;
     i32 songIdx;
+    // Where the music was, so a rewind takes the music back too.
+    bool hasBgmPosition;
+    u32 bgmPosition;
 };
 
 // What a saved run keeps: the selection, the stage, and the stats that stage
@@ -737,6 +740,7 @@ static void TakeCheckpoint()
         g_Snapshot.stageObjectFlags[i] = g_Stage.objects[i]->flags;
     }
     g_Snapshot.songIdx = g_State.songIdx;
+    g_Snapshot.hasBgmPosition = g_SoundPlayer.GetBgmPosition(&g_Snapshot.bgmPosition);
     g_Snapshot.valid = true;
 
     g_State.checkpointWanted = false;
@@ -782,6 +786,11 @@ static void RestoreCheckpoint()
         g_Supervisor.PlayAudio(g_Stage.stdData->songPaths[g_Snapshot.songIdx]);
     }
     g_State.songIdx = g_Snapshot.songIdx;
+    if (g_Snapshot.hasBgmPosition)
+    {
+        PD_LOG("music back to sample %u", g_Snapshot.bgmPosition);
+        g_SoundPlayer.SeekBgm(g_Snapshot.bgmPosition);
+    }
 
     // While alive the timer counts up, so the restored value can be huge; the
     // invulnerability after a rewind is always exactly this long.

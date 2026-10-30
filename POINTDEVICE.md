@@ -24,8 +24,8 @@ back to the last checkpoint instead of losing a life, as many times as you need.
 - **When you get hit** the game freezes and asks:
   - **Continue from checkpoint**: everything (score, power, bombs, enemies,
     bullets, boss HP) goes back to the checkpoint, and you get exactly 2
-    seconds of invulnerability. The music keeps playing; it only changes back
-    if the checkpoint was before the boss theme started.
+    seconds of invulnerability. The music goes back to where it was
+    at the checkpoint, too.
   - **Give up**: ends the run and shows the result screen.
 - **Pause (ESC)** opens the Pointdevice pause menu:
   - **Resume** (ESC also resumes)

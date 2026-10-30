@@ -97,6 +97,11 @@ struct SoundPlayer
     ZunResult LoadWav(const char *path);
     ZunResult LoadPos(const char *path);
 
+    // Pointdevice rewinds the music with the game: the position of the streamed
+    // BGM in samples per channel (false when none is playing), and a seek to it.
+    bool GetBgmPosition(u32 *pos);
+    void SeekBgm(u32 pos);
+
     void BackgroundMusicPlayerThread();
     void MixAudio(u32 samples);
 
