@@ -46,6 +46,72 @@
     color: #555;
     pointer-events: none;
   }
+
+  /* 虚拟按键：仅在触摸设备显示。容器透传指针，只有控件本身接收触摸，
+     这样手指不在按钮上时仍能看到/操作下方的游戏画面。 */
+  #touch { display: none; }
+  #touch.on { display: block; }
+  #touch {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    touch-action: none;
+  }
+  #touch button,
+  #tc-stick {
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* 左下：方向摇杆，触点偏移映射到方向键（含斜向 = 同时两键）。 */
+  #tc-stick {
+    position: absolute;
+    left: 5vw; bottom: 6vh;
+    width: 38vw; max-width: 190px; aspect-ratio: 1;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+    border: 2px solid rgba(255, 255, 255, 0.22);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #tc-knob {
+    width: 42%; height: 42%;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.34);
+    pointer-events: none;
+  }
+  /* 右下：射击 / 炸弹 / 低速。右上：决定 / 菜单。flex 横排避免重叠。 */
+  #tc-actions {
+    position: absolute;
+    right: 4vw; bottom: 6vh;
+    display: flex; align-items: flex-end; gap: 14px;
+    pointer-events: none;
+  }
+  #tc-sys {
+    position: absolute;
+    right: 4vw; top: 3vh;
+    display: flex; gap: 12px;
+    pointer-events: none;
+  }
+  #touch button {
+    border-radius: 50%;
+    color: #fff;
+    font-family: inherit;
+    font-weight: bold;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    line-height: 1.1;
+  }
+  #touch button.pressed { background: rgba(255, 255, 255, 0.4); }
+  #touch button small { font-size: 0.62em; font-weight: normal; opacity: 0.8; }
+  .tc-act { width: 17vw; max-width: 84px; aspect-ratio: 1; font-size: 16px; }
+  .tc-main { width: 21vw; max-width: 104px; font-size: 19px; }
+  .tc-sm { width: 14vw; max-width: 64px; aspect-ratio: 1;
+           font-size: 12px; background: rgba(255, 255, 255, 0.1); }
 </style>
 </head>
 <body>
@@ -53,6 +119,20 @@
   <div id="status">Loading…</div>
   <canvas id="canvas" width="640" height="480" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
   <div id="hint">方向键移动 · Z 射击 · X 炸弹 · Shift 低速 · Shift+Enter 切换全屏 · 点击画面后键盘生效</div>
+
+  <!-- 虚拟按键：仅触摸设备显示（由脚本加 .on）。data-code 即派发的 KeyboardEvent.code。 -->
+  <div id="touch">
+    <div id="tc-stick"><div id="tc-knob"></div></div>
+    <div id="tc-actions">
+      <button class="tc-act" data-code="ShiftLeft">低速<small>Shift</small></button>
+      <button class="tc-act tc-main" data-code="KeyX">炸弹<small>X</small></button>
+      <button class="tc-act tc-main" data-code="KeyZ">射击<small>Z</small></button>
+    </div>
+    <div id="tc-sys">
+      <button class="tc-sm" data-code="Escape">菜单<small>Esc</small></button>
+      <button class="tc-sm" data-code="Enter">决定<small>↵</small></button>
+    </div>
+  </div>
 </div>
 <script>
   const statusEl = document.getElementById('status');
@@ -78,11 +158,35 @@
   // disabling vsync to cut input lag). SDL creates the context inside wasm, so we
   // wrap getContext to inject the attribute before that first call.
   // preserveDrawingBuffer avoids flicker that desynchronized WebGL can otherwise show.
+  //
+  // We also use this hook to detect the first real frame: after assets finish
+  // loading the game spends a noticeable chunk of time (slow devices especially)
+  // decoding the DAT archives, compiling shaders and loading the title logo — all
+  // before anything is drawn. Hiding the status text the instant assets are ready
+  // (as monitorRunDependencies does) leaves a blank black screen during that gap.
+  // Instead we keep a status message up until the first glDrawArrays call, which
+  // is the game actually painting its first frame.
+  let firstFrameSeen = false;
+  function onFirstFrame() {
+    if (firstFrameSeen) return;
+    firstFrameSeen = true;
+    Module.setStatus('');
+  }
   (function patchGetContext() {
     const orig = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (type, attrs) {
       if (type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl') {
         attrs = Object.assign({}, attrs, { desynchronized: true, preserveDrawingBuffer: true });
+        const gl = orig.call(this, type, attrs);
+        if (gl && !gl.__firstFrameHooked) {
+          gl.__firstFrameHooked = true;
+          const origDraw = gl.drawArrays;
+          gl.drawArrays = function (...args) {
+            onFirstFrame();
+            return origDraw.apply(this, args);
+          };
+        }
+        return gl;
       }
       return orig.call(this, type, attrs);
     };
@@ -94,13 +198,63 @@
     printErr: (...args) => console.warn(...args),
     setStatus: (text) => {
       statusEl.textContent = text || '';
-      if (!text) setTimeout(() => { statusEl.style.display = 'none'; }, 1500);
+      if (text) {
+        statusEl.style.display = '';
+      } else {
+        setTimeout(() => { statusEl.style.display = 'none'; }, 1500);
+      }
     },
     totalDependencies: 0,
     monitorRunDependencies: function (left) {
       this.totalDependencies = Math.max(this.totalDependencies, left);
-      Module.setStatus(left ? `准备资源 (${this.totalDependencies - left}/${this.totalDependencies})` : '');
+      // Don't blank the status when deps hit 0 — the game still has to decode
+      // archives and build its first frame. Show an "initializing" message and
+      // let onFirstFrame() clear it once something is actually drawn.
+      Module.setStatus(left ? `准备资源 (${this.totalDependencies - left}/${this.totalDependencies})` : '初始化中…');
     },
+    // Assets are NOT bundled (the combined .data would exceed the 20MB per-file
+    // limit). Fetch each file listed in assets/manifest.txt and write it into MEMFS
+    // before main() runs. addRunDependency blocks startup until all are loaded.
+    preRun: [function () {
+      addRunDependency('fetch-assets');
+      (async () => {
+        try {
+          console.log('[assets] preRun start, fetching manifest…');
+          const manifest = await (await fetch('assets/manifest.txt')).text();
+          const files = manifest.split('\n').map(s => s.trim())
+            .filter(s => s && s !== 'manifest.txt');
+          console.log('[assets] manifest has', files.length, 'files');
+          let done = 0;
+          for (const rel of files) {
+            const resp = await fetch('assets/' + rel);
+            if (!resp.ok) throw new Error('fetch ' + rel + ' -> HTTP ' + resp.status);
+            const buf = new Uint8Array(await resp.arrayBuffer());
+            const parts = rel.split('/');
+            let dir = '';
+            for (let i = 0; i < parts.length - 1; i++) {
+              dir += parts[i];
+              try { FS.mkdir('/' + dir); } catch (e) { /* exists */ }
+              dir += '/';
+            }
+            FS.writeFile('/' + rel, buf);
+            done++;
+            Module.setStatus(`加载资源 ${done}/${files.length}`);
+          }
+          console.log('[assets] all', done, 'files written to MEMFS');
+          // sanity: confirm a key archive is present and non-empty
+          try {
+            const st = FS.stat('/紅魔郷CM.DAT');
+            console.log('[assets] /紅魔郷CM.DAT size =', st.size);
+          } catch (e) { console.error('[assets] DAT missing after write!', e); }
+        } catch (e) {
+          console.error('[assets] load failed:', e);
+          Module.setStatus('资源加载失败，请看 Console');
+        } finally {
+          console.log('[assets] removeRunDependency -> game will start');
+          removeRunDependency('fetch-assets');
+        }
+      })();
+    }],
     // The GL backend resizes the drawing buffer to 640x480; keep CSS fit after that.
     onRuntimeInitialized: () => setTimeout(fitCanvas, 0),
   };
@@ -125,6 +279,125 @@
     }
   }, true);
   document.addEventListener('fullscreenchange', () => setTimeout(fitCanvas, 0));
+
+  // ---- 虚拟按键（移动端）----------------------------------------------------
+  // emscripten 的 SDL2 在 window 上监听 keydown/keyup，且只读事件的 `code`
+  // 字段映射成 SDL scancode（见 SDL_emscriptenevents.c）。所以这里合成带正确
+  // `code` 的 KeyboardEvent 派发到 window，游戏侧的 SDL_GetKeyboardState 完全
+  // 无法区分真假按键 —— 无需改动 C++ 或重新编译。
+  (function setupTouchControls() {
+    const touch = document.getElementById('touch');
+
+    // 触摸设备才显示虚拟按键。监听 matchMedia 的 change 而非加载时一次性判断：
+    // DevTools 切换设备模式、平板旋转等动态变化都能即时响应（真机首次加载也会
+    // 立即命中）。事件监听始终绑定，仅用 .on 控制显隐，对桌面端无副作用。
+    const mq = matchMedia('(pointer: coarse)');
+    function updateVisibility() {
+      const isTouch = mq.matches || 'ontouchstart' in window;
+      touch.classList.toggle('on', isTouch);
+      setTimeout(fitCanvas, 0);
+    }
+    mq.addEventListener('change', updateVisibility);
+    updateVisibility();
+
+    // 同一个 code 可能被多个触点同时驱动（如摇杆 + 按钮），用计数避免一个
+    // 触点抬起就误放另一个还按着的键。仅在 0↔1 跳变时才真正派发事件。
+    const held = new Map();
+    function press(code) {
+      const n = (held.get(code) || 0) + 1;
+      held.set(code, n);
+      if (n === 1) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
+      }
+    }
+    function release(code) {
+      const n = (held.get(code) || 0) - 1;
+      if (n <= 0) {
+        held.delete(code);
+        window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
+      } else {
+        held.set(code, n);
+      }
+    }
+
+    // 动作 / 系统按钮：按住=keydown，松开/移出=keyup。
+    for (const btn of touch.querySelectorAll('button[data-code]')) {
+      const code = btn.dataset.code;
+      let active = false;
+      const down = (e) => {
+        e.preventDefault();
+        if (active) return;
+        active = true;
+        btn.classList.add('pressed');
+        press(code);
+      };
+      const up = (e) => {
+        e.preventDefault();
+        if (!active) return;
+        active = false;
+        btn.classList.remove('pressed');
+        release(code);
+      };
+      btn.addEventListener('pointerdown', down);
+      btn.addEventListener('pointerup', up);
+      btn.addEventListener('pointercancel', up);
+      btn.addEventListener('pointerleave', up);
+    }
+
+    // 摇杆：触点相对圆心的偏移 → 八方向。死区避免轻触误触发；超过阈值的轴
+    // 才置位，斜向时两轴同时按下（游戏用方向键组合实现斜向移动）。
+    const stick = document.getElementById('tc-stick');
+    const knob = document.getElementById('tc-knob');
+    const DIRS = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
+    let dirState = { up: false, down: false, left: false, right: false };
+    let stickPointer = null;
+
+    function applyDir(next) {
+      for (const k in DIRS) {
+        if (next[k] && !dirState[k]) press(DIRS[k]);
+        else if (!next[k] && dirState[k]) release(DIRS[k]);
+      }
+      dirState = next;
+    }
+    function clearDir() {
+      applyDir({ up: false, down: false, left: false, right: false });
+      knob.style.transform = '';
+    }
+    function updateStick(e) {
+      const r = stick.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const dx = e.clientX - cx, dy = e.clientY - cy;
+      const radius = r.width / 2;
+      const dead = radius * 0.28;
+      const next = { up: false, down: false, left: false, right: false };
+      if (Math.abs(dx) > dead) next[dx < 0 ? 'left' : 'right'] = true;
+      if (Math.abs(dy) > dead) next[dy < 0 ? 'up' : 'down'] = true;
+      applyDir(next);
+      // 旋钮跟随，限制在圆内，给操作反馈。
+      const dist = Math.min(Math.hypot(dx, dy), radius);
+      const ang = Math.atan2(dy, dx);
+      knob.style.transform = `translate(${Math.cos(ang) * dist * 0.5}px, ${Math.sin(ang) * dist * 0.5}px)`;
+    }
+    stick.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      stickPointer = e.pointerId;
+      stick.setPointerCapture(e.pointerId);
+      updateStick(e);
+    });
+    stick.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== stickPointer) return;
+      e.preventDefault();
+      updateStick(e);
+    });
+    const stickEnd = (e) => {
+      if (e.pointerId !== stickPointer) return;
+      e.preventDefault();
+      stickPointer = null;
+      clearDir();
+    };
+    stick.addEventListener('pointerup', stickEnd);
+    stick.addEventListener('pointercancel', stickEnd);
+  })();
 </script>
 <script async src="th06.js"></script>
 </body>

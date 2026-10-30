@@ -82,11 +82,23 @@ SOURCES=(
   "$SRC"/thirdparty/sjis_converter.cpp
 )
 
-# --preload-file is added later (Phase 3) once game .DAT assets are available.
-PRELOAD=()
+# Assets are NOT bundled into a single th06.data (that file would exceed the 20MB
+# per-file limit). Instead copy each resource to dist/assets/ as an independent file
+# and emit a manifest; play.html fetches them into MEMFS at startup (preRun).
 if [ -d "${TH06_ASSETS_DIR:-}" ]; then
-  echo "Preloading assets from $TH06_ASSETS_DIR -> virtual FS root"
-  PRELOAD=(--preload-file "$TH06_ASSETS_DIR@/")
+  echo "Staging assets from $TH06_ASSETS_DIR -> $OUT/assets/ (no bundling)"
+  rm -rf "$OUT/assets"
+  mkdir -p "$OUT/assets"
+  # Copy preserving the bgm/ subdirectory structure the game expects.
+  (cd "$TH06_ASSETS_DIR" && find . -type f -print0 | while IFS= read -r -d '' f; do
+    rel="${f#./}"
+    mkdir -p "$OUT/assets/$(dirname "$rel")"
+    cp "$f" "$OUT/assets/$rel"
+  done)
+  # Manifest: newline-separated relative paths, consumed by play.html.
+  (cd "$OUT/assets" && find . -type f -print | sed 's|^\./||' | sort) > "$OUT/assets/manifest.txt"
+  echo "Staged $(wc -l < "$OUT/assets/manifest.txt" | tr -d ' ') asset files."
+  echo "Largest asset: $(find "$OUT/assets" -type f -exec ls -l {} \; | sort -k5 -rn | head -1 | awk '{printf "%.1fMB", $5/1048576}')"
 fi
 
 set -x
@@ -104,14 +116,26 @@ emcc \
   -sWASM=1 \
   -sALLOW_MEMORY_GROWTH=1 \
   -sEXIT_RUNTIME=0 \
+  -sFORCE_FILESYSTEM=1 \
+  -sEXPORTED_RUNTIME_METHODS='["FS","addRunDependency","removeRunDependency","callMain"]' \
   -Wno-unused-label \
   -Wno-c99-extensions \
   "${SOURCES[@]}" \
-  ${PRELOAD[@]+"${PRELOAD[@]}"} \
-  -o "$OUT/th06.html"
+  -o "$OUT/th06.js"
 set +x
 
 echo ""
-echo "Build OK -> $OUT/th06.{html,js,wasm}"
+echo "Build OK -> $OUT/th06.{js,wasm}"
+echo "Note: emitting th06.js (NOT th06.html). The emcc-generated th06.html carries no"
+echo "      asset-injection logic, so opening it leaves MEMFS empty and the game aborts"
+echo "      on the first missing file. The hand-written index.html / play.html do the"
+echo "      manifest fetch into MEMFS, so always enter through those."
+
+# play.html is the single source of truth for the page. Publish it as index.html
+# (the platform's default entry) so the deployed entry always matches the source.
+cp "$PROJ/web/play.html" "$OUT/index.html"
+cp "$PROJ/web/play.html" "$OUT/play.html"
+echo "Published page -> $OUT/index.html (and play.html), copied from web/play.html"
+
 echo "Serve with:  cd '$OUT' && python3 -m http.server 8000"
-echo "Then open:   http://localhost:8000/th06.html"
+echo "Then open:   http://localhost:8000/        (index.html)"
