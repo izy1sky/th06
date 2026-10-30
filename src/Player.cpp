@@ -1,4 +1,5 @@
 #include "Player.hpp"
+#include "PointDevice.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -234,7 +235,7 @@ ChainCallbackResult Player::OnUpdate(Player *p)
             p->playerSprite.flags.blendMode = AnmVmBlendMode_One;
             p->previousHorizontalSpeed = 0.0f;
             p->previousVerticalSpeed = 0.0f;
-            if (p->invulnerabilityTimer.AsFrames() >= 30)
+            if (p->invulnerabilityTimer.AsFrames() >= 30 && !PointDevice::OnDeathFinished())
             {
                 p->playerState = PLAYER_STATE_SPAWNING;
                 p->positionCenter.x = g_GameManager.arcadeRegionSize.x / 2.0f;

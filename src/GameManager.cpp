@@ -7,6 +7,7 @@
 #include "EnemyManager.hpp"
 #include "Gui.hpp"
 #include "Player.hpp"
+#include "PointDevice.hpp"
 #include "ReplayManager.hpp"
 #include "ResultScreen.hpp"
 #include "Rng.hpp"
@@ -132,7 +133,7 @@ ChainCallbackResult GameManager::OnUpdate(GameManager *gameManager)
         }
     }
     if (!gameManager->isInRetryMenu && !gameManager->isInGameMenu && !gameManager->demoMode &&
-        WAS_PRESSED(TH_BUTTON_MENU))
+        WAS_PRESSED(TH_BUTTON_MENU) && !PointDevice::OpenPauseMenu())
     {
         gameManager->isInGameMenu = 1;
         g_GameManager.arcadeRegionTopLeftPos.x = GAME_REGION_LEFT;
@@ -174,6 +175,12 @@ ChainCallbackResult GameManager::OnUpdate(GameManager *gameManager)
     {
         return CHAIN_CALLBACK_RESULT_BREAK;
     }
+    if (PointDevice::UpdateInGameMenu())
+    {
+        return CHAIN_CALLBACK_RESULT_BREAK;
+    }
+
+    PointDevice::OnFrameStart();
 
     if (gameManager->score >= MAX_SCORE + 1)
     {
@@ -214,7 +221,17 @@ ChainCallbackResult GameManager::OnUpdate(GameManager *gameManager)
         }
         if (gameManager->extraLives >= 0 && g_ExtraLivesScores[gameManager->extraLives] <= gameManager->guiScore)
         {
-            if (gameManager->livesRemaining < MAX_LIVES)
+            if (PointDevice::IsRunActive())
+            {
+                // Lives mean nothing in Pointdevice Mode, so extends give a bomb instead.
+                if (gameManager->bombsRemaining < MAX_LIVES)
+                {
+                    gameManager->bombsRemaining++;
+                    g_SoundPlayer.PlaySoundByIdx(SOUND_1UP);
+                }
+                g_Gui.flags.flag1 = 2;
+            }
+            else if (gameManager->livesRemaining < MAX_LIVES)
             {
                 gameManager->livesRemaining++;
                 g_SoundPlayer.PlaySoundByIdx(SOUND_1UP);
@@ -438,7 +455,8 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
         g_GameErrorContext.Log(TH_ERR_GAMEMANAGER_FAILED_TO_INITIALIZE_GUI);
         return ZUN_ERROR;
     }
-    if (g_GameManager.isInReplay == 0)
+    PointDevice::OnGameStart(g_Supervisor.curState != SUPERVISOR_STATE_GAMEMANAGER_REINIT);
+    if (g_GameManager.isInReplay == 0 && !PointDevice::IsRunActive())
     {
         ReplayManager::RegisterChain(0, "replay/th6_00.rpy");
     }
