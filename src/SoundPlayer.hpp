@@ -101,6 +101,9 @@ struct SoundPlayer
     // BGM in samples per channel (false when none is playing), and a seek to it.
     bool GetBgmPosition(u32 *pos);
     void SeekBgm(u32 pos);
+    // Holds the BGM where it is (sound effects still play). Starting a new BGM
+    // clears it.
+    void PauseBgm(bool paused);
 
     void BackgroundMusicPlayerThread();
     void MixAudio(u32 samples);
@@ -113,6 +116,7 @@ struct SoundPlayer
     i32 soundBuffersToPlay[3];
     MusicStream backgroundMusic;
     bool isLooping;
+    bool bgmPaused;
 #ifdef __EMSCRIPTEN__
     // Per-frame software mixer bookkeeping (replaces the background mixer thread).
     bool webAudioInited;

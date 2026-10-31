@@ -45,6 +45,17 @@ namespace PointDevice
 // does not pick an option by accident.
 #define PD_MENU_INPUT_DELAY 20
 
+// Leaving a menu. Resume slides the menu out. Continue also sweeps strips across
+// the play area, rewinds while it is covered, then sweeps them off again.
+#define PD_MENU_EXIT_FRAMES 10
+#define PD_SHUTTER_STRIPS 8
+#define PD_SHUTTER_STAGGER 2.0f
+#define PD_SHUTTER_CLOSE_FRAMES 24
+#define PD_SHUTTER_HOLD_FRAMES 24
+#define PD_SHUTTER_OPEN_FRAMES 24
+#define PD_SHUTTER_COLOR 0xff0e0b16
+#define PD_SHUTTER_EDGE_COLOR 0x00e8dcff
+
 // One saved run per difficulty, character and shot type.
 #define PD_SAVE_FILE_FORMAT "pointdevice-%d-%d-%d.sav"
 #define PD_SAVE_MAGIC 0x56534450 // "PDSV"
@@ -90,9 +101,12 @@ struct Snapshot
     std::vector<AnmVm> stageQuadVms;
     std::vector<i8> stageObjectFlags;
     i32 songIdx;
-    // Where the music was, so a rewind takes the music back too.
+    // Where the music was, so a rewind takes the music back too: the streamed
+    // BGM's sample, or the MIDI player's position.
     bool hasBgmPosition;
     u32 bgmPosition;
+    bool hasMidiPosition;
+    MidiPosition midiPosition;
 };
 
 // What a saved run keeps: the selection, the stage, and the stats that stage
@@ -144,6 +158,13 @@ enum PauseMenuItem
     PAUSE_MENU_COUNT,
 };
 
+enum MenuExit
+{
+    MENU_EXIT_NONE,
+    MENU_EXIT_RESUME,
+    MENU_EXIT_REWIND,
+};
+
 enum ModeSelectStep
 {
     MODE_SELECT_CLOSED,
@@ -186,6 +207,11 @@ struct State
     MenuKind menu;
     i32 menuCursor;
     i32 menuFrames;
+    // Set once an item is picked: the menu stays up while it animates away.
+    MenuExit menuExit;
+    i32 menuExitFrames;
+    // The music holds still while a menu is open.
+    bool musicPaused;
     f32 menuHighlight[PAUSE_MENU_COUNT];
     ModeSelectStep modeSelect;
     i32 modeSelectCursor;
@@ -203,7 +229,6 @@ struct State
     // The stats the current stage started with, written out by "Save and quit".
     SaveData stageStart;
     bool runActive;
-    bool pendingRestore;
     bool checkpointWanted;
     bool checkpointForced;
     i32 forcedFrames;
@@ -224,6 +249,23 @@ static State g_State;
         std::fprintf(stderr, __VA_ARGS__);                                                                             \
         std::fputc('\n', stderr);                                                                                     \
     }
+
+static void PauseMusic(bool paused)
+{
+    g_State.musicPaused = paused;
+    g_SoundPlayer.PauseBgm(paused);
+    if (g_Supervisor.midiOutput != NULL)
+    {
+        if (paused)
+        {
+            g_Supervisor.midiOutput->Pause();
+        }
+        else
+        {
+            g_Supervisor.midiOutput->Resume();
+        }
+    }
+}
 
 #ifdef __EMSCRIPTEN__
 // The web build keeps its files in memory only, so saved runs live in
@@ -560,8 +602,12 @@ void OnReturnToMenu()
 {
     g_State.modeSelect = MODE_SELECT_CLOSED;
     g_State.runActive = false;
-    g_State.pendingRestore = false;
     g_State.menu = MENU_NONE;
+    g_State.menuExit = MENU_EXIT_NONE;
+    if (g_State.musicPaused)
+    {
+        PauseMusic(false);
+    }
     g_Snapshot.valid = false;
 }
 
@@ -617,9 +663,13 @@ void OnGameStart(bool isNewGame)
         }
     }
     g_State.menu = MENU_NONE;
+    g_State.menuExit = MENU_EXIT_NONE;
+    if (g_State.musicPaused)
+    {
+        PauseMusic(false);
+    }
     // Snapshots point into stage data, so they never survive a stage change.
     g_Snapshot.valid = false;
-    g_State.pendingRestore = false;
     g_State.checkpointWanted = true;
     g_State.checkpointForced = true;
     g_State.forcedFrames = 0;
@@ -741,6 +791,8 @@ static void TakeCheckpoint()
     }
     g_Snapshot.songIdx = g_State.songIdx;
     g_Snapshot.hasBgmPosition = g_SoundPlayer.GetBgmPosition(&g_Snapshot.bgmPosition);
+    g_Snapshot.hasMidiPosition = g_Supervisor.cfg.musicMode == MIDI && g_Supervisor.midiOutput != NULL &&
+                                 g_Supervisor.midiOutput->GetPosition(&g_Snapshot.midiPosition);
     g_Snapshot.valid = true;
 
     g_State.checkpointWanted = false;
@@ -784,12 +836,25 @@ static void RestoreCheckpoint()
     {
         PD_LOG("restoring music track %d", g_Snapshot.songIdx);
         g_Supervisor.PlayAudio(g_Stage.stdData->songPaths[g_Snapshot.songIdx]);
+        // Starting a track unpauses it; it stays quiet until the rewind is over.
+        if (g_State.musicPaused)
+        {
+            PauseMusic(true);
+        }
     }
     g_State.songIdx = g_Snapshot.songIdx;
     if (g_Snapshot.hasBgmPosition)
     {
         PD_LOG("music back to sample %u", g_Snapshot.bgmPosition);
         g_SoundPlayer.SeekBgm(g_Snapshot.bgmPosition);
+    }
+    if (g_Snapshot.hasMidiPosition && g_Supervisor.midiOutput != NULL)
+    {
+        PD_LOG("midi music back to tick %llu + %llu ms, track 1 at byte %u",
+               (unsigned long long)g_Snapshot.midiPosition.tickBase,
+               (unsigned long long)g_Snapshot.midiPosition.elapsedMS,
+               g_Snapshot.midiPosition.tracks.empty() ? 0 : g_Snapshot.midiPosition.tracks[0].cursorOffset);
+        g_Supervisor.midiOutput->SetPosition(&g_Snapshot.midiPosition);
     }
 
     // While alive the timer counts up, so the restored value can be huge; the
@@ -822,16 +887,6 @@ void OnFrameStart()
         return;
     }
 
-    if (g_State.pendingRestore)
-    {
-        g_State.pendingRestore = false;
-        if (g_Snapshot.valid)
-        {
-            RestoreCheckpoint();
-            return;
-        }
-    }
-
     g_State.framesSinceCheckpoint++;
     if (g_State.framesSinceCheckpoint >= PD_PERIODIC_INTERVAL)
     {
@@ -857,17 +912,33 @@ void OnFrameStart()
     }
 }
 
+static void ForceCheckpoint()
+{
+    g_State.checkpointWanted = true;
+    g_State.checkpointForced = true;
+    g_State.forcedFrames = 0;
+}
+
 void RequestCheckpoint()
 {
     if (!g_State.runActive)
     {
         return;
     }
-    g_State.checkpointWanted = true;
-    g_State.checkpointForced = true;
-    g_State.forcedFrames = 0;
+    ForceCheckpoint();
     g_State.autotestBossSeen = true;
     PD_LOG("boss attack started, checkpoint requested");
+}
+
+// So that dying after a midboss's last attack doesn't send you back into it.
+void OnBossAttackEnded()
+{
+    if (!g_State.runActive)
+    {
+        return;
+    }
+    ForceCheckpoint();
+    PD_LOG("boss attack ended, checkpoint requested");
 }
 
 // Practice runs cannot be saved, so their pause menu has no "Save and quit".
@@ -894,7 +965,51 @@ static void OpenMenu(MenuKind kind)
     g_State.menu = kind;
     g_State.menuCursor = 0;
     g_State.menuFrames = 0;
+    g_State.menuExit = MENU_EXIT_NONE;
     SnapHighlights(g_State.menuHighlight, PAUSE_MENU_COUNT, 0);
+    PauseMusic(true);
+}
+
+static void LeaveMenu(MenuExit exit)
+{
+    g_State.menuExit = exit;
+    g_State.menuExitFrames = 0;
+}
+
+static i32 MenuExitLength()
+{
+    return g_State.menuExit == MENU_EXIT_REWIND
+               ? PD_SHUTTER_CLOSE_FRAMES + PD_SHUTTER_HOLD_FRAMES + PD_SHUTTER_OPEN_FRAMES
+               : PD_MENU_EXIT_FRAMES;
+}
+
+// The rewind happens once the strips cover the play area, and the music comes
+// back as they start to sweep off.
+static void StepMenuExit()
+{
+    const i32 frame = g_State.menuExitFrames++;
+
+    if (g_State.menuExit == MENU_EXIT_REWIND)
+    {
+        if (frame == PD_SHUTTER_CLOSE_FRAMES)
+        {
+            RestoreCheckpoint();
+        }
+        if (frame == PD_SHUTTER_CLOSE_FRAMES + PD_SHUTTER_HOLD_FRAMES)
+        {
+            PauseMusic(false);
+        }
+    }
+    if (frame + 1 < MenuExitLength())
+    {
+        return;
+    }
+    if (g_State.menuExit == MENU_EXIT_RESUME)
+    {
+        PauseMusic(false);
+    }
+    g_State.menu = MENU_NONE;
+    g_State.menuExit = MENU_EXIT_NONE;
 }
 
 bool OnDeathFinished()
@@ -924,12 +1039,13 @@ bool OpenPauseMenu()
 
 static void SelectDeathMenuItem(i32 item)
 {
-    g_State.menu = MENU_NONE;
     if (item == DEATH_MENU_CONTINUE)
     {
-        g_State.pendingRestore = true;
+        LeaveMenu(MENU_EXIT_REWIND);
         return;
     }
+    g_State.menu = MENU_NONE;
+    PauseMusic(false);
     // Giving up ends the run the same way declining a continue does.
     PD_LOG("gave up (score %u)", g_GameManager.score);
     g_GameManager.guiScore = g_GameManager.score;
@@ -949,11 +1065,14 @@ static void SelectPauseMenuItem(i32 item)
         PD_LOG("saved run (stage %d, score %u) and quit", g_State.stageStart.stage, g_State.stageStart.score);
         g_State.autotestSaved = g_State.autotest == AUTOTEST_SAVE_QUIT;
     }
-    g_State.menu = MENU_NONE;
-    if (item != PAUSE_MENU_RESUME)
+    if (item == PAUSE_MENU_RESUME)
     {
-        g_Supervisor.curState = SUPERVISOR_STATE_MAINMENU;
+        LeaveMenu(MENU_EXIT_RESUME);
+        return;
     }
+    g_State.menu = MENU_NONE;
+    PauseMusic(false);
+    g_Supervisor.curState = SUPERVISOR_STATE_MAINMENU;
 }
 
 bool UpdateInGameMenu()
@@ -966,6 +1085,11 @@ bool UpdateInGameMenu()
     }
     // Gameplay is frozen, which is not slowdown.
     g_GameManager.isInMenu = 0;
+    if (g_State.menuExit != MENU_EXIT_NONE)
+    {
+        StepMenuExit();
+        return true;
+    }
     count = MenuItemCount();
     StepHighlights(g_State.menuHighlight, count, g_State.menuCursor);
     if (g_State.menuFrames++ < PD_MENU_INPUT_DELAY)
@@ -1312,15 +1436,19 @@ static void DrawModeSelectArt()
 }
 
 // Laid out like the game's own pause menu, centred in the play area. The play
-// area dims, the title drops in, then the items slide in from the left.
+// area dims, the title drops in, then the items slide in from the left. Once
+// an item is picked they all slide on to the right and fade.
 static void DrawInGameMenuArt()
 {
     static const char *deathItems[DEATH_MENU_COUNT] = {"opt_retry", "opt_giveup"};
     static const char *pauseItems[PAUSE_MENU_COUNT] = {"opt_resume", "opt_savequit", "opt_quit"};
-    const f32 centerX = (GAME_REGION_LEFT + GAME_REGION_RIGHT) / 2.0f;
+    const f32 exit =
+        g_State.menuExit != MENU_EXIT_NONE ? Ease(g_State.menuExitFrames, 0.0f, PD_MENU_EXIT_FRAMES) : 0.0f;
+    const f32 shown = 1.0f - exit;
+    const f32 centerX = (GAME_REGION_LEFT + GAME_REGION_RIGHT) / 2.0f + 24.0f * exit;
     const i32 frames = g_State.menuFrames;
-    const f32 dim = Ease(frames, 0.0f, 8.0f);
-    const f32 title = Ease(frames, 0.0f, 10.0f);
+    const f32 dim = Ease(frames, 0.0f, 8.0f) * shown;
+    const f32 title = Ease(frames, 0.0f, 10.0f) * shown;
     char digits[16];
     char name[32];
     f32 itemsTop;
@@ -1330,6 +1458,10 @@ static void DrawInGameMenuArt()
     i32 count;
     i32 i;
 
+    if (shown <= 0.0f)
+    {
+        return;
+    }
     DimRect(GAME_REGION_LEFT, GAME_REGION_TOP, GAME_REGION_RIGHT, GAME_REGION_BOTTOM,
             COLOR_SET_ALPHA(COLOR_BLACK, (u32)(0x80 * dim)));
     count = MenuItemCount();
@@ -1352,7 +1484,7 @@ static void DrawInGameMenuArt()
     for (i = 0; i < count; i++)
     {
         const char *base = g_State.menu == MENU_DEATH ? deathItems[i] : pauseItems[PauseItemAt(i)];
-        item = Ease(frames, 4.0f + 3.0f * i, 10.0f);
+        item = Ease(frames, 4.0f + 3.0f * i, 10.0f) * shown;
         highlight = g_State.menuHighlight[i];
         x = centerX - 24.0f * (1.0f - item);
         // The selected style is larger, so it sits a little higher.
@@ -1366,8 +1498,63 @@ static void DrawInGameMenuArt()
         // The hint fades with the "Save and quit" highlight.
         std::snprintf(name, sizeof(name), "hint_%d", g_State.stageStart.stage < 7 ? g_State.stageStart.stage : 7);
         DrawArtCentered(name, centerX, itemsTop + 40.0f * count + 6.0f,
-                        Ease(frames, 10.0f, 8.0f) * g_State.menuHighlight[PAUSE_MENU_SAVE_AND_QUIT]);
+                        Ease(frames, 10.0f, 8.0f) * shown * g_State.menuHighlight[PAUSE_MENU_SAVE_AND_QUIT]);
     }
+}
+
+// The cut out and cut in around a rewind: strips sweep across the play area
+// from alternate sides, one after another, until it is covered. The rewind
+// happens behind them, "リトライ n回目" shows, then the strips carry on across
+// and off the other side.
+static void DrawShutter()
+{
+    const i32 frame = g_State.menuExitFrames;
+    const f32 width = GAME_REGION_RIGHT - GAME_REGION_LEFT;
+    const f32 height = (GAME_REGION_BOTTOM - GAME_REGION_TOP) / PD_SHUTTER_STRIPS;
+    const f32 sweep = PD_SHUTTER_CLOSE_FRAMES - PD_SHUTTER_STAGGER * (PD_SHUTTER_STRIPS - 1);
+    const f32 openStart = PD_SHUTTER_CLOSE_FRAMES + PD_SHUTTER_HOLD_FRAMES;
+    char digits[16];
+    f32 in, out, left, right, top, edge;
+    f32 text;
+    f32 x;
+    i32 i;
+
+    for (i = 0; i < PD_SHUTTER_STRIPS; i++)
+    {
+        const bool fromLeft = i % 2 == 0;
+        const f32 delay = PD_SHUTTER_STAGGER * i;
+
+        in = Ease(frame, delay, sweep);
+        out = Ease(frame, openStart + delay, sweep);
+        if (in <= 0.0f || out >= 1.0f)
+        {
+            continue;
+        }
+        left = fromLeft ? GAME_REGION_LEFT + width * out : GAME_REGION_RIGHT - width * in;
+        right = fromLeft ? GAME_REGION_LEFT + width * in : GAME_REGION_RIGHT - width * out;
+        top = GAME_REGION_TOP + height * i;
+        DimRect(left, top, right, top + height, PD_SHUTTER_COLOR);
+        // A bright edge leads each strip in and trails it out.
+        if (in < 1.0f || out > 0.0f)
+        {
+            edge = in < 1.0f ? (fromLeft ? right : left) : (fromLeft ? left : right);
+            DimRect(edge - 1.5f, top, edge + 1.5f, top + height,
+                    COLOR_SET_ALPHA(PD_SHUTTER_EDGE_COLOR, (u32)(0xe0 * (in < 1.0f ? 1.0f - in : out))));
+        }
+    }
+
+    text = Ease(frame, PD_SHUTTER_CLOSE_FRAMES, 8.0f) * (1.0f - Ease(frame, openStart, 10.0f));
+    if (text <= 0.0f)
+    {
+        return;
+    }
+    std::snprintf(digits, sizeof(digits), "%d", g_State.retries);
+    x = (GAME_REGION_LEFT + GAME_REGION_RIGHT) / 2.0f -
+        (ArtWidth("retry_pre") + GlyphsWidth("small_", digits) + ArtWidth("retry_post")) / 2.0f;
+    top = (GAME_REGION_TOP + GAME_REGION_BOTTOM) / 2.0f - 10.0f + 6.0f * (1.0f - text);
+    DrawArt("retry_pre", x, top, text);
+    x = DrawGlyphs("small_", digits, x + ArtWidth("retry_pre"), top, text);
+    DrawArt("retry_post", x, top, text);
 }
 
 void DrawMenus()
@@ -1392,6 +1579,10 @@ void DrawMenus()
     else
     {
         DrawInGameMenuArt();
+        if (g_State.menuExit == MENU_EXIT_REWIND)
+        {
+            DrawShutter();
+        }
     }
 }
 

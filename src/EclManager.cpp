@@ -794,6 +794,7 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
                     g_EnemyManager.spellcardInfo.isActive = 0;
                 }
                 g_Stage.spellcardState = NOT_RUNNING;
+                PointDevice::OnBossAttackEnded();
                 break;
             case ECL_OPCODE_BOSSTIMERSET:
                 enemy->bossTimer.SetCurrent(instruction->args.setInt);

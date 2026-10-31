@@ -7,6 +7,7 @@
 #include "GameManager.hpp"
 #include "Gui.hpp"
 #include "Player.hpp"
+#include "PointDevice.hpp"
 #include "Rng.hpp"
 #include "utils.hpp"
 
@@ -342,6 +343,10 @@ bool Enemy::HandleLifeCallback()
 
     if (this->life < this->lifeCallbackThreshold)
     {
+        if (this->flags.isBoss)
+        {
+            PointDevice::OnBossAttackEnded();
+        }
         this->life = this->lifeCallbackThreshold;
         g_EclManager.CallEclSub(&this->currentContext, this->lifeCallbackSub);
         this->lifeCallbackThreshold = -1;
@@ -392,6 +397,10 @@ bool Enemy::HandleTimerCallback()
 
     if (this->HasBossTimerFinished())
     {
+        if (this->flags.isBoss)
+        {
+            PointDevice::OnBossAttackEnded();
+        }
         if (this->lifeCallbackThreshold > 0)
         {
             this->life = this->lifeCallbackThreshold;
@@ -642,6 +651,10 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
                 switch (curEnemy->flags.unk11)
                 {
                 case 3:
+                    if (curEnemy->flags.isBoss)
+                    {
+                        PointDevice::OnBossAttackEnded();
+                    }
                     curEnemy->life = 1;
                     curEnemy->flags.unk10 = 0;
                     curEnemy->flags.unk11 = 0;
@@ -660,6 +673,7 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
                 LAB_00412a4d:
                     if (curEnemy->flags.isBoss)
                     {
+                        PointDevice::OnBossAttackEnded();
                         g_Gui.bossPresent = 0;
                         Enemy::ResetEffectArray(curEnemy);
                     }
