@@ -65,7 +65,7 @@ which premake writes every time it runs, so run premake once first.
 ```powershell
 git clone https://github.com/izy1sky/th06.git
 cd th06
-premake5 vs2022                      # only to generate Embeds.hpp
+premake5 vs2022                      # only to generate Embeds.hpp (full path if not on PATH)
 & C:\emsdk\emsdk_env.ps1             # wherever emsdk is installed
 $env:TH06_ASSETS_DIR = "C:\th06-assets"
 .\web\build_web.ps1                  # add -Debug for assertions + symbols
@@ -91,9 +91,26 @@ Either way, open `http://localhost:8000/`. Both scripts compile
 
 ## Building for desktop
 
-Windows: `premake5 vs2022`, then open the generated solution in `build\` with
-Visual Studio and build (SDL2, SDL2_image and SDL2_ttf development libraries
-are needed, as for the upstream portable branch).
+Windows (PowerShell), with Visual Studio 2022 or 2026 ("Desktop development
+with C++"):
+
+1. Download [premake5](https://premake.github.io/download) and the
+   `SDL2-devel-*-VC.zip`, `SDL2_image-devel-*-VC.zip` and
+   `SDL2_ttf-devel-*-VC.zip` packages from the SDL releases on GitHub.
+2. Put `premake5.exe` in one folder, for example `C:\tools`, and unzip the
+   three SDL packages there (you get `SDL2-2.x`, `SDL2_image-2.x` and
+   `SDL2_ttf-2.x` folders).
+3. In the repository folder run:
+
+   ```powershell
+   .\build_windows.ps1 -ToolsDir C:\tools
+   ```
+
+   This builds `th06.exe` and `th06_config.exe` and copies the SDL2 DLLs and
+   `msgothic.ttc` next to them. Add `-Configuration Debug` for a debug build.
+4. Copy the six `紅魔郷*.DAT` files from your copy of the game into the same
+   folder, run `th06_config.exe` once and pick **Windowed** if you don't want
+   full screen, then start `th06.exe`.
 
 macOS / Linux:
 
