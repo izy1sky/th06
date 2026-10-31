@@ -811,6 +811,11 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
             case ECL_OPCODE_TIMERCALLBACKTHRESHOLD:
                 enemy->timerCallbackThreshold = instruction->args.setInt;
                 enemy->bossTimer.SetCurrent(0);
+                // Midboss attacks start with only a time limit, no life threshold.
+                if (enemy->flags.isBoss)
+                {
+                    PointDevice::RequestCheckpoint();
+                }
                 break;
             case ECL_OPCODE_TIMERCALLBACKSUB:
                 enemy->timerCallbackSub = instruction->args.setInt;
