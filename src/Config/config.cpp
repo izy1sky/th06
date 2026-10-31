@@ -361,7 +361,8 @@ int main(int, char *[])
 {
     const char *configPath = "東方紅魔郷.cfg";
 
-    GameConfiguration cfg;
+    // Zeroed so the fields this tool doesn't set aren't written out as leftover memory.
+    GameConfiguration cfg{};
     if (const auto data = FileSystem::OpenPath(configPath))
     {
         memcpy(&cfg, data, sizeof(GameConfiguration));
@@ -376,7 +377,16 @@ int main(int, char *[])
         cfg.lifeCount = 2;
         cfg.bombCount = 3;
         cfg.colorMode16bit = 0;
-        cfg.musicMode = 1;
+        // Same choice as Supervisor::LoadConfig: WAV only when the bgm folder is there.
+        if (FILE *wavFile = fopen("bgm/th06_01.wav", "rb"))
+        {
+            fclose(wavFile);
+            cfg.musicMode = WAV;
+        }
+        else
+        {
+            cfg.musicMode = MIDI;
+        }
         cfg.playSounds = 1;
         cfg.defaultDifficulty = 1;
         cfg.windowed = 0;
@@ -384,6 +394,12 @@ int main(int, char *[])
         cfg.padXAxis = 600;
         cfg.padYAxis = 600;
         cfg.opts = (1 << GCOS_USE_D3D_HW_TEXTURE_BLENDING);
+        // Same as g_ControllerMapping in Supervisor.cpp, which this tool doesn't link.
+        cfg.controllerMapping = {SDL_CONTROLLER_BUTTON_A,         SDL_CONTROLLER_BUTTON_B,
+                                 SDL_CONTROLLER_BUTTON_LEFTSHOULDER, SDL_CONTROLLER_BUTTON_START,
+                                 SDL_CONTROLLER_BUTTON_DPAD_UP,   SDL_CONTROLLER_BUTTON_DPAD_DOWN,
+                                 SDL_CONTROLLER_BUTTON_DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
+                                 SDL_CONTROLLER_BUTTON_RIGHTSHOULDER};
     }
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
