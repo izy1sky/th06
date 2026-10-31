@@ -356,7 +356,8 @@ class ConfigUI
     }
 };
 
-int main()
+// SDL renames main to SDL_main on Windows, which needs this exact signature.
+int main(int, char *[])
 {
     const char *configPath = "東方紅魔郷.cfg";
 

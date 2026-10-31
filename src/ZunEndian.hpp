@@ -95,15 +95,16 @@ static constexpr inline u8 ZunByteswap(u8 in)
 {
     return in;
 }
-static constexpr inline u16 ZunByteswap(u16 in)
+// Not constexpr: on MSVC the SDL_Swap* functions use intrinsics that aren't constexpr.
+static inline u16 ZunByteswap(u16 in)
 {
     return SDL_Swap16(in);
 }
-static constexpr inline u32 ZunByteswap(u32 in)
+static inline u32 ZunByteswap(u32 in)
 {
     return SDL_Swap32(in);
 }
-static constexpr inline u64 ZunByteswap(u64 in)
+static inline u64 ZunByteswap(u64 in)
 {
     return SDL_Swap64(in);
 }
