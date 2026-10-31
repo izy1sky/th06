@@ -62,6 +62,7 @@ SoundPlayer::SoundPlayer()
 #ifdef __EMSCRIPTEN__
     this->backgroundMusic.oggPcm = NULL;
 #endif
+    this->bgmPaused = false;
 }
 
 ZunResult SoundPlayer::InitializeDSound()
@@ -184,6 +185,13 @@ void SoundPlayer::SeekBgm(u32 pos)
     this->backgroundMusic.pos = pos;
     SDL_RWseek(this->backgroundMusic.srcWav.fileStream, this->backgroundMusic.srcWav.dataStartOffset + pos * 4,
                SEEK_SET);
+}
+
+void SoundPlayer::PauseBgm(bool paused)
+{
+    std::lock_guard<std::mutex> lock(this->soundBufMutex);
+
+    this->bgmPaused = paused;
 }
 
 void SoundPlayer::FadeOut(f32 seconds)
@@ -547,6 +555,7 @@ ZunResult SoundPlayer::PlayBGM(bool isLooping)
     //    }
     utils::DebugPrint2("comp\n");
     this->isLooping = isLooping;
+    this->bgmPaused = false;
     return ZUN_SUCCESS;
 }
 
@@ -676,7 +685,7 @@ void SoundPlayer::MixAudio(u32 samples)
         }
     }
 
-    if (this->backgroundMusic.srcWav.fileStream != NULL)
+    if (this->backgroundMusic.srcWav.fileStream != NULL && !this->bgmPaused)
     {
         u32 samplesMixed = 0;
         f32 fadeoutMult;
