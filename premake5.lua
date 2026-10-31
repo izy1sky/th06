@@ -16,6 +16,17 @@ workspace "th06"
   configurations { "Debug", "Release" }
   location "build"
 
+  -- Without this, Visual Studio defaults to Win32 and the SDL2 libdirs below never match.
+  filter "system:windows"
+    architecture "x86_64"
+  filter {}
+
+  -- MSVC: report the real __cplusplus (the code checks it for C++20) and read sources as UTF-8
+  -- (the Japanese file names in string literals break under non-UTF-8 code pages).
+  filter "toolset:msc*"
+    buildoptions { "/Zc:__cplusplus", "/utf-8" }
+  filter {}
+
 newoption {
    trigger = "no-asoundlib",
    description = "Disables use of the ALSA MIDI interface on Linux. Results in a build without MIDI support."
@@ -233,6 +244,11 @@ project "th06_config"
 
   filter "system:windows"
     links { "SDL2", "SDL2main", "SDL2_ttf" }
+
+    for _, dir in ipairs({ os.getenv("SDL2_DIR"), os.getenv("SDL2_TTF_DIR") }) do
+      includedirs { dir .. "/include" }
+      libdirs { dir .. "/lib/x64" }
+    end
   filter {}
 
   filter "configurations:Debug"
