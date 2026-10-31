@@ -10,11 +10,12 @@ This repository does not include any game data. You need your own copy of the or
 
 ## Upstream
 
-This project is based on [GensokyoClub/th06](https://github.com/GensokyoClub/th06), the Touhou 6
-decompilation, and specifically its
+This repository was forked from [GensokyoClub/th06](https://github.com/GensokyoClub/th06), the
+Touhou 6 decompilation, and is built on its
 [`portable` branch](https://github.com/GensokyoClub/th06/tree/portable) (EoSD-portable), which ports
-the decompiled game to SDL2 and OpenGL. All of the game code, the portable renderer and the build
-setup come from that project and its contributors; this repository adds on top of it:
+the decompiled game to SDL2 and OpenGL. It is no longer linked to that repository on GitHub and
+doesn't send changes back to it. All of the game code, the portable renderer and the build setup
+come from that project and its contributors; this repository adds on top of it:
 
 - a browser (WebAssembly) build with OGG music,
 - Pointdevice Mode, with its menus, checkpoint saves and music rewind,
