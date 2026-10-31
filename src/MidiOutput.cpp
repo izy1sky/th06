@@ -40,6 +40,12 @@ i32 MidiOutput::StopTimer()
 
 u32 SDLCALL MidiOutput::DefaultTimerCallback(u32 interval, MidiOutput *timer)
 {
+    std::lock_guard<std::mutex> guard(timer->lock);
+    // A tick that was already due when Pause stopped the timer.
+    if (timer->paused)
+    {
+        return 0;
+    }
     timer->OnTimerElapsed();
 
     return interval; // Reschedules with same interval
@@ -72,6 +78,8 @@ MidiOutput::MidiOutput()
     this->fadeOutVolumeMultiplier = 0;
     this->fadeOutLastSetVolume = 0;
     this->fadeOutFlag = false;
+    this->paused = false;
+    this->playingBeforePause = false;
 
     for (int i = 0; i < ARRAY_SIZE_SIGNED(this->midiFileData); i++)
     {
@@ -243,6 +251,7 @@ ZunResult MidiOutput::Play()
 
     this->LoadTracks();
     this->midiOutDev.OpenDevice(0xFFFF'FFFF);
+    this->paused = false;
     this->StartTimer(1, NULL, NULL);
 
     return ZUN_SUCCESS;
@@ -529,5 +538,213 @@ void MidiOutput::FadeOutSetVolume(i32 volume)
 
         // 7: Controller value number for volume (with range 0 - 127)
         this->midiOutDev.SendShortMsg(MIDI_OPCODE_MODE_CHANGE | idx, 7, volumeClamped);
+    }
+}
+
+// Stops every note that is sounding, on all channels.
+void MidiOutput::Silence()
+{
+    i32 idx;
+
+    for (idx = 0; idx < ARRAY_SIZE_SIGNED(this->channels); idx++)
+    {
+        // 120: All Sound Off, 123: All Notes Off
+        this->midiOutDev.SendShortMsg(MIDI_OPCODE_MODE_CHANGE | idx, 120, 0);
+        this->midiOutDev.SendShortMsg(MIDI_OPCODE_MODE_CHANGE | idx, 123, 0);
+        std::memset(this->channels[idx].keyPressedFlags, 0, sizeof(this->channels[idx].keyPressedFlags));
+    }
+}
+
+// Sends a track's system exclusive, program, controller and pitch bend
+// messages from its start up to `end`, skipping notes, so the synth is set up
+// the way it was when playback reached that point.
+void MidiOutput::ReplayControllers(const MidiTrack *track, const u8 *end)
+{
+    u8 *cursor = track->trackData;
+    u8 runningOpcode = 0;
+    u8 opcode;
+    u8 arg1, arg2;
+    u32 length;
+    u8 *sysExData;
+
+    MidiOutput::ReadVariableLength(&cursor);
+    while (cursor < end)
+    {
+        opcode = *cursor;
+        if (opcode < MIDI_OPCODE_NOTE_OFF)
+        {
+            opcode = runningOpcode;
+        }
+        else
+        {
+            cursor++;
+        }
+        arg1 = 0;
+        arg2 = 0;
+        switch (opcode & 0xf0)
+        {
+        case MIDI_OPCODE_SYSTEM_EXCLUSIVE:
+            if (opcode == MIDI_OPCODE_SYSTEM_EXCLUSIVE)
+            {
+                length = MidiOutput::ReadVariableLength(&cursor);
+                sysExData = (u8 *)std::malloc(length + 1);
+                sysExData[0] = MIDI_OPCODE_SYSTEM_EXCLUSIVE;
+                std::memcpy(sysExData + 1, cursor, length);
+                this->midiOutDev.SendLongMsg(sysExData, length + 1);
+                std::free(sysExData);
+                cursor += length;
+            }
+            else if (opcode == MIDI_OPCODE_SYSTEM_RESET)
+            {
+                if (*cursor++ == 0x2f)
+                {
+                    return;
+                }
+                length = MidiOutput::ReadVariableLength(&cursor);
+                cursor += length;
+            }
+            break;
+        case MIDI_OPCODE_NOTE_OFF:
+        case MIDI_OPCODE_NOTE_ON:
+        case MIDI_OPCODE_POLYPHONIC_AFTERTOUCH:
+        case MIDI_OPCODE_MODE_CHANGE:
+        case MIDI_OPCODE_PITCH_BEND_CHANGE:
+            arg1 = *cursor++;
+            arg2 = *cursor++;
+            break;
+        case MIDI_OPCODE_PROGRAM_CHANGE:
+        case MIDI_OPCODE_CHANNEL_AFTERTOUCH:
+            arg1 = *cursor++;
+            break;
+        }
+        switch (opcode & 0xf0)
+        {
+        case MIDI_OPCODE_MODE_CHANGE:
+            // 2 and 4 are EoSD's loop markers, not real controllers.
+            if (arg1 == 2 || arg1 == 4)
+            {
+                break;
+            }
+            SDL_FALLTHROUGH;
+        case MIDI_OPCODE_PROGRAM_CHANGE:
+        case MIDI_OPCODE_PITCH_BEND_CHANGE:
+            this->midiOutDev.SendShortMsg(opcode, arg1, arg2);
+            break;
+        }
+        runningOpcode = opcode;
+        MidiOutput::ReadVariableLength(&cursor);
+    }
+}
+
+bool MidiOutput::GetPosition(MidiPosition *pos)
+{
+    std::lock_guard<std::mutex> guard(this->lock);
+    i32 idx;
+
+    if (this->tracks == NULL || !(this->paused ? this->playingBeforePause : this->timerId != 0))
+    {
+        return false;
+    }
+    pos->tracks.resize(this->numTracks);
+    for (idx = 0; idx < this->numTracks; idx++)
+    {
+        const MidiTrack *track = &this->tracks[idx];
+        MidiTrackPosition *saved = &pos->tracks[idx];
+
+        saved->trackLength = track->trackLength;
+        saved->cursorOffset = (u32)(track->curTrackDataCursor - track->trackData);
+        saved->loopPointOffset = (u32)(track->loopPointTarget - track->trackData);
+        saved->nextMessageTimePos = track->nextMessageTimePos;
+        saved->loopPointTimePos = track->loopPointTimePos;
+        saved->opcode = track->opcode;
+        saved->trackPlaying = track->trackPlaying;
+    }
+    pos->tempo = this->tempo;
+    pos->elapsedMS = this->elapsedMS;
+    pos->tickBase = this->tickBase;
+    pos->loopPointTempo = this->loopPointTempo;
+    pos->loopPointMSCount = this->loopPointMSCount;
+    pos->loopPointBaseTicks = this->loopPointBaseTicks;
+    std::memcpy(pos->channels, this->channels, sizeof(this->channels));
+    return true;
+}
+
+// Only works for the track that was playing when `pos` was taken; another
+// track is left alone.
+void MidiOutput::SetPosition(const MidiPosition *pos)
+{
+    std::lock_guard<std::mutex> guard(this->lock);
+    i32 idx;
+
+    if (this->tracks == NULL || (i32)pos->tracks.size() != this->numTracks)
+    {
+        return;
+    }
+    for (idx = 0; idx < this->numTracks; idx++)
+    {
+        if (pos->tracks[idx].trackLength != this->tracks[idx].trackLength)
+        {
+            return;
+        }
+    }
+    this->Silence();
+    for (idx = 0; idx < this->numTracks; idx++)
+    {
+        MidiTrack *track = &this->tracks[idx];
+        const MidiTrackPosition *saved = &pos->tracks[idx];
+
+        track->curTrackDataCursor = track->trackData + saved->cursorOffset;
+        track->loopPointTarget = track->trackData + saved->loopPointOffset;
+        track->nextMessageTimePos = saved->nextMessageTimePos;
+        track->loopPointTimePos = saved->loopPointTimePos;
+        track->opcode = saved->opcode;
+        track->trackPlaying = saved->trackPlaying;
+        this->ReplayControllers(track, track->curTrackDataCursor);
+    }
+    this->tempo = pos->tempo;
+    this->elapsedMS = pos->elapsedMS;
+    this->tickBase = pos->tickBase;
+    this->loopPointTempo = pos->loopPointTempo;
+    this->loopPointMSCount = pos->loopPointMSCount;
+    this->loopPointBaseTicks = pos->loopPointBaseTicks;
+    for (idx = 0; idx < ARRAY_SIZE_SIGNED(this->channels); idx++)
+    {
+        this->channels[idx] = pos->channels[idx];
+        std::memset(this->channels[idx].keyPressedFlags, 0, sizeof(this->channels[idx].keyPressedFlags));
+    }
+    // The clock only counts from now, however long ago `pos` was taken.
+    this->lastTimerTicks = SDL_GetTicks();
+}
+
+void MidiOutput::Pause()
+{
+    std::lock_guard<std::mutex> guard(this->lock);
+
+    if (this->paused)
+    {
+        return;
+    }
+    this->paused = true;
+    this->playingBeforePause = this->timerId != 0;
+    this->StopTimer();
+    if (this->playingBeforePause)
+    {
+        this->Silence();
+    }
+}
+
+void MidiOutput::Resume()
+{
+    std::lock_guard<std::mutex> guard(this->lock);
+
+    if (!this->paused)
+    {
+        return;
+    }
+    this->paused = false;
+    if (this->playingBeforePause && this->tracks != NULL)
+    {
+        // Also restarts the clock, so the pause isn't counted as playing time.
+        this->StartTimer(1, NULL, NULL);
     }
 }

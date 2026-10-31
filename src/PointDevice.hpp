@@ -46,8 +46,8 @@ bool IsRunActive();
 
 // ESC was pressed in-game. Returns true when the Pointdevice pause menu handles it.
 bool OpenPauseMenu();
-// Runs the death and pause menus. Returns true while one is open, in which
-// case gameplay is frozen for this frame.
+// Runs the death and pause menus and the transition out of them. Returns true
+// while one is open, in which case gameplay is frozen for this frame.
 bool UpdateInGameMenu();
 
 // Called once per unpaused gameplay frame, before any other gameplay manager updates.
@@ -55,6 +55,9 @@ void OnFrameStart();
 
 // A boss attack (spell card or non-spell) just started.
 void RequestCheckpoint();
+// A boss or midboss attack just ended: its life or time ran out, the boss was
+// killed, or the spell card is over.
+void OnBossAttackEnded();
 
 // Called when the death animation is over. Returns true if the death menu was
 // opened, in which case the caller must not take a life away.
