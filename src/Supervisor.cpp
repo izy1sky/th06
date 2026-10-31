@@ -641,11 +641,26 @@ i32 Supervisor::LoadPbg3(i32 pbg3FileIdx, const char *filename)
     return 0;
 }
 
+// WAV music mode plays bgm/th06_XX.wav next to the game. The web build ships compressed OGG BGM
+// instead (decoded to PCM in SoundPlayer::LoadWav), so it probes for the .ogg.
+bool Supervisor::WavMusicAvailable()
+{
+#ifdef __EMSCRIPTEN__
+    FILE *wavFile = FileSystem::FopenUTF8("bgm/th06_01.ogg", "rb");
+#else
+    FILE *wavFile = FileSystem::FopenUTF8("bgm/th06_01.wav", "rb");
+#endif
+    if (wavFile == NULL)
+    {
+        return false;
+    }
+    std::fclose(wavFile);
+    return true;
+}
+
 ZunResult Supervisor::LoadConfig(const char *path)
 {
     const GameConfiguration *data;
-    FILE *wavFile;
-    FILE *wavFile2;
 
     std::memset(&g_Supervisor.cfg, 0, sizeof(GameConfiguration));
     g_Supervisor.cfg.opts = g_Supervisor.cfg.opts | (1 << GCOS_USE_D3D_HW_TEXTURE_BLENDING);
@@ -658,17 +673,9 @@ ZunResult Supervisor::LoadConfig(const char *path)
         g_Supervisor.cfg.version = GAME_VERSION;
         g_Supervisor.cfg.padXAxis = 600;
         g_Supervisor.cfg.padYAxis = 600;
-#ifdef __EMSCRIPTEN__
-        // The web build ships compressed OGG BGM (decoded to PCM in SoundPlayer::LoadWav).
-        // Probe for the .ogg so WAV music mode is selected instead of falling back to MIDI.
-        wavFile = FileSystem::FopenUTF8("bgm/th06_01.ogg", "rb");
-#else
-        wavFile = FileSystem::FopenUTF8("bgm/th06_01.wav", "rb");
-#endif
-        if (wavFile != NULL)
+        if (WavMusicAvailable())
         {
             g_Supervisor.cfg.musicMode = WAV;
-            std::fclose(wavFile);
         }
         else
         {
@@ -697,15 +704,9 @@ ZunResult Supervisor::LoadConfig(const char *path)
             g_Supervisor.cfg.version = GAME_VERSION;
             g_Supervisor.cfg.padXAxis = 600;
             g_Supervisor.cfg.padYAxis = 600;
-#ifdef __EMSCRIPTEN__
-            wavFile2 = FileSystem::FopenUTF8("bgm/th06_01.ogg", "rb");
-#else
-            wavFile2 = FileSystem::FopenUTF8("bgm/th06_01.wav", "rb");
-#endif
-            if (wavFile2 != NULL)
+            if (WavMusicAvailable())
             {
                 g_Supervisor.cfg.musicMode = WAV;
-                std::fclose(wavFile2);
             }
             else
             {
@@ -720,6 +721,13 @@ ZunResult Supervisor::LoadConfig(const char *path)
             std::memset(&g_Supervisor.cfg.opts, 0, sizeof(GameConfigOptsShifts));
             g_Supervisor.cfg.opts |= (1 << GCOS_USE_D3D_HW_TEXTURE_BLENDING);
             g_GameErrorContext.Log(TH_ERR_CONFIG_CORRUPTED);
+        }
+        // A config saved where the BGM files were present (or written by th06_config) can ask for
+        // WAV music in a folder without them, and WAV mode would then play nothing.
+        if (g_Supervisor.cfg.musicMode == WAV && !WavMusicAvailable())
+        {
+            g_Supervisor.cfg.musicMode = MIDI;
+            utils::DebugPrint(TH_ERR_NO_WAVE_FILE);
         }
         g_ControllerMapping = g_Supervisor.cfg.controllerMapping;
         free((void *)data);

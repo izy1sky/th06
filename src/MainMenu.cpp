@@ -1753,6 +1753,11 @@ u32 MainMenu::OnUpdateOptionsMenu()
                     g_Supervisor.cfg.musicMode = MIDI + 1;
                 }
                 g_Supervisor.cfg.musicMode -= 1;
+                // Without the BGM files WAV plays nothing, so the choice skips it.
+                if (g_Supervisor.cfg.musicMode == WAV && !Supervisor::WavMusicAvailable())
+                {
+                    g_Supervisor.cfg.musicMode = OFF;
+                }
                 g_Supervisor.PlayAudio("bgm/th06_01.mid");
                 break;
 
@@ -1822,6 +1827,10 @@ u32 MainMenu::OnUpdateOptionsMenu()
                 {
                     g_Supervisor.cfg.musicMode = OFF;
                 }
+                if (g_Supervisor.cfg.musicMode == WAV && !Supervisor::WavMusicAvailable())
+                {
+                    g_Supervisor.cfg.musicMode = MIDI;
+                }
                 g_Supervisor.PlayAudio("bgm/th06_01.mid");
                 break;
             case CURSOR_OPTIONS_POS_PLAYSOUNDS:
@@ -1870,7 +1879,7 @@ u32 MainMenu::OnUpdateOptionsMenu()
                 g_Supervisor.StopAudio();
                 g_Supervisor.cfg.lifeCount = 2;
                 g_Supervisor.cfg.bombCount = 3;
-                g_Supervisor.cfg.musicMode = WAV;
+                g_Supervisor.cfg.musicMode = Supervisor::WavMusicAvailable() ? WAV : MIDI;
                 g_Supervisor.cfg.playSounds = true;
                 g_Supervisor.cfg.defaultDifficulty = NORMAL;
                 g_Supervisor.cfg.windowed = false;
