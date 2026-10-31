@@ -142,10 +142,11 @@ $EmccArgs = @(
     "-o", (Join-Path $Out "th06.js")
 )
 
-Write-Host "emcc $($EmccArgs -join ' ')"
-& emcc @EmccArgs
+# em++, not emcc: newer emscripten no longer links libc++ when the C driver links C++ objects.
+Write-Host "em++ $($EmccArgs -join ' ')"
+& em++ @EmccArgs
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "emcc failed with exit code $LASTEXITCODE"
+    Write-Error "em++ failed with exit code $LASTEXITCODE"
 }
 
 Write-Host ""
