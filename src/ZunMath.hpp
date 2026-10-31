@@ -9,6 +9,11 @@
 #define __has_builtin(name) 0
 #endif
 
+// winnt.h does #define RotateLeft16 _rotl16, which would turn our definition into one of the intrinsic.
+#ifdef RotateLeft16
+#undef RotateLeft16
+#endif
+
 #if __cplusplus >= 202002L
 #include <bit>
 inline u32 BitCeil(u32 n)
