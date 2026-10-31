@@ -2,8 +2,10 @@
 
 #include "ZunResult.hpp"
 #include "inttypes.hpp"
-#include <mmsystem.h>
+// windows.h must come before mmsystem.h; the blank line keeps clang-format from re-sorting them.
 #include <windows.h>
+
+#include <mmsystem.h>
 
 struct MidiDevice
 {
