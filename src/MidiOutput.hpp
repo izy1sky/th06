@@ -4,6 +4,8 @@
 #include "inttypes.hpp"
 
 #include <SDL2/SDL_timer.h>
+#include <mutex>
+#include <vector>
 
 #ifdef _WIN32
 #include "midi/MidiWin32.hpp"
@@ -80,6 +82,32 @@ struct MidiChannel
     u8 channelVolume;
 };
 
+// Where one track is: offsets into its data rather than pointers, since a track
+// change parses the file again into new buffers.
+struct MidiTrackPosition
+{
+    u32 trackLength;
+    u32 cursorOffset;
+    u32 loopPointOffset;
+    u32 nextMessageTimePos;
+    u32 loopPointTimePos;
+    u8 opcode;
+    bool trackPlaying;
+};
+
+// A playback position, so Pointdevice can take the music back with the game.
+struct MidiPosition
+{
+    std::vector<MidiTrackPosition> tracks;
+    i32 tempo;
+    u64 elapsedMS;
+    u64 tickBase;
+    u32 loopPointTempo;
+    u64 loopPointMSCount;
+    u64 loopPointBaseTicks;
+    MidiChannel channels[16];
+};
+
 struct MidiOutput
 {
     MidiOutput();
@@ -106,6 +134,11 @@ struct MidiOutput
     u32 SetFadeOut(u32 ms);
     void FadeOutSetVolume(i32 volume);
 
+    bool GetPosition(MidiPosition *pos);
+    void SetPosition(const MidiPosition *pos);
+    void Pause();
+    void Resume();
+
     static u32 ReadVariableLength(u8 **curTrackDataCursor);
 
     SDL_TimerID timerId;
@@ -129,4 +162,14 @@ struct MidiOutput
     u32 loopPointTempo;
     u64 loopPointMSCount;
     u64 loopPointBaseTicks;
+
+    // Held by the timer callback, which runs on SDL's timer thread, and by the
+    // functions above, which the game thread calls.
+    std::mutex lock;
+    bool paused;
+    bool playingBeforePause;
+
+  private:
+    void Silence();
+    void ReplayControllers(const MidiTrack *track, const u8 *end);
 };
