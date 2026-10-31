@@ -1,3 +1,33 @@
+# th06 with Pointdevice Mode
+
+A playable, portable build of Touhou 6 (Embodiment of Scarlet Devil) for Windows, macOS, Linux and
+the browser, with a TH15-style **Pointdevice Mode**: when you get hit you go back to the last
+checkpoint instead of losing a life. See [POINTDEVICE.md](POINTDEVICE.md) for how it plays and how
+to build it, and [web/README.md](web/README.md) for the browser build.
+
+This repository does not include any game data. You need your own copy of the original game's
+`.DAT` files.
+
+## Upstream
+
+This project is based on [GensokyoClub/th06](https://github.com/GensokyoClub/th06), the Touhou 6
+decompilation, and specifically its
+[`portable` branch](https://github.com/GensokyoClub/th06/tree/portable) (EoSD-portable), which ports
+the decompiled game to SDL2 and OpenGL. All of the game code, the portable renderer and the build
+setup come from that project and its contributors; this repository adds on top of it:
+
+- a browser (WebAssembly) build with OGG music,
+- Pointdevice Mode, with its menus, checkpoint saves and music rewind,
+- touch controls and Windows build scripts for the web version.
+
+Changes from upstream `portable` are merged in from time to time. Upstream's `master` branch is the
+byte-matching decompilation of the original Windows executable and isn't merged here. Like the
+upstream port, this repository is licensed under the GPLv3 (see [LICENSE](LICENSE)).
+
+---
+
+The rest of this file is the upstream EoSD-portable readme.
+
 [![Discord][discord-badge]][discord] <- click here to join discord server.
 
 [discord]: https://discord.gg/VyGwAjrh9a
