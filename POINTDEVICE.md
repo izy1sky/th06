@@ -1,7 +1,6 @@
 # Pointdevice Mode (TH15-style checkpoints) for th06
 
-This branch (`feat/pointdevice-mode`, based on `web-port-compressed-audio`)
-adds a Pointdevice Mode like the one in Touhou 15. When you get hit you go
+This repository adds a Pointdevice Mode like the one in Touhou 15. When you get hit you go
 back to the last checkpoint instead of losing a life, as many times as you need.
 
 ## How it plays
@@ -64,7 +63,7 @@ which premake writes every time it runs, so run premake once first.
 ### Windows (PowerShell)
 
 ```powershell
-git clone -b feat/pointdevice-mode https://github.com/izy1sky/th06.git
+git clone https://github.com/izy1sky/th06.git
 cd th06
 premake5 vs2022                      # only to generate Embeds.hpp
 & C:\emsdk\emsdk_env.ps1             # wherever emsdk is installed
