@@ -26,3 +26,11 @@ dist/
 # Local packaging artifacts (large, may contain bundled assets)
 dist.zip
 *.zip
+
+# Files put next to the exe to run the game (see build_windows.ps1)
+*.dll
+*.DAT
+*.ttc
+*.cfg
+/bgm/
+/replay/
