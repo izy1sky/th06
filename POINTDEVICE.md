@@ -16,7 +16,7 @@ back to the last checkpoint instead of losing a life, as many times as you need.
   1UPs and extends give a bomb instead, and stage clears give no life bonus.
 - **Checkpoints** are taken automatically:
   - at the start of every stage,
-  - at the start of every boss attack (spell cards and non-spells),
+  - at the start of every boss and midboss attack (spell cards and non-spells),
   - every 15 seconds during the stage, but only at a calm moment (no bullets
     close to you, no lasers, no bomb or dialogue in progress).
   "Checkpoint" flashes at the bottom of the play area when one is taken.
