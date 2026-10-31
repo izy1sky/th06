@@ -101,8 +101,9 @@ if [ -d "${TH06_ASSETS_DIR:-}" ]; then
   echo "Largest asset: $(find "$OUT/assets" -type f -exec ls -l {} \; | sort -k5 -rn | head -1 | awk '{printf "%.1fMB", $5/1048576}')"
 fi
 
+# em++, not emcc: newer emscripten no longer links libc++ when the C driver links C++ objects.
 set -x
-emcc \
+em++ \
   -std=c++20 \
   -I"$SRC" \
   "${OPT_FLAGS[@]}" \

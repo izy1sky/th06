@@ -2026,8 +2026,8 @@ void AnmManager::CopySurfaceRectToBackBuffer(i32 surfaceIdx, i32 dstX, i32 dstY,
         return;
     }
 
-    ApplySurfaceToColorBuffer(srcSurface, (SDL_Rect){.x = rectLeft, .y = rectTop, .w = rectWidth, .h = rectHeight},
-                              (SDL_Rect){.x = dstX, .y = dstY, .w = rectWidth, .h = rectHeight});
+    ApplySurfaceToColorBuffer(srcSurface, SDL_Rect{.x = rectLeft, .y = rectTop, .w = rectWidth, .h = rectHeight},
+                              SDL_Rect{.x = dstX, .y = dstY, .w = rectWidth, .h = rectHeight});
     //
     //    IDirect3DSurface8 *D3D_Surface;
     //    if (g_Supervisor.d3dDevice->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &D3D_Surface) != D3D_OK)
