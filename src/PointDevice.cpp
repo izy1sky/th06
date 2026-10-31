@@ -101,6 +101,7 @@ struct Snapshot
     std::vector<AnmVm> stageQuadVms;
     std::vector<i8> stageObjectFlags;
     i32 songIdx;
+    bool inBossAttack;
     // Where the music was, so a rewind takes the music back too: the streamed
     // BGM's sample, or the MIDI player's position.
     bool hasBgmPosition;
@@ -233,6 +234,9 @@ struct State
     bool checkpointForced;
     i32 forcedFrames;
     i32 framesSinceCheckpoint;
+    // Between a boss attack's start and end the periodic checkpoints stop, so
+    // dying always sends you back to the start of the attack.
+    bool inBossAttack;
     i32 songIdx;
     i32 retries;
     i32 checkpointMsgFrames;
@@ -674,6 +678,7 @@ void OnGameStart(bool isNewGame)
     g_State.checkpointForced = true;
     g_State.forcedFrames = 0;
     g_State.framesSinceCheckpoint = 0;
+    g_State.inBossAttack = false;
     g_State.songIdx = 0;
     g_State.checkpointMsgFrames = 0;
     g_State.retryMsgFrames = 0;
@@ -790,6 +795,7 @@ static void TakeCheckpoint()
         g_Snapshot.stageObjectFlags[i] = g_Stage.objects[i]->flags;
     }
     g_Snapshot.songIdx = g_State.songIdx;
+    g_Snapshot.inBossAttack = g_State.inBossAttack;
     g_Snapshot.hasBgmPosition = g_SoundPlayer.GetBgmPosition(&g_Snapshot.bgmPosition);
     g_Snapshot.hasMidiPosition = g_Supervisor.cfg.musicMode == MIDI && g_Supervisor.midiOutput != NULL &&
                                  g_Supervisor.midiOutput->GetPosition(&g_Snapshot.midiPosition);
@@ -843,6 +849,7 @@ static void RestoreCheckpoint()
         }
     }
     g_State.songIdx = g_Snapshot.songIdx;
+    g_State.inBossAttack = g_Snapshot.inBossAttack;
     if (g_Snapshot.hasBgmPosition)
     {
         PD_LOG("music back to sample %u", g_Snapshot.bgmPosition);
@@ -887,10 +894,13 @@ void OnFrameStart()
         return;
     }
 
-    g_State.framesSinceCheckpoint++;
-    if (g_State.framesSinceCheckpoint >= PD_PERIODIC_INTERVAL)
+    if (!g_State.inBossAttack)
     {
-        g_State.checkpointWanted = true;
+        g_State.framesSinceCheckpoint++;
+        if (g_State.framesSinceCheckpoint >= PD_PERIODIC_INTERVAL)
+        {
+            g_State.checkpointWanted = true;
+        }
     }
 
     if (g_State.checkpointForced)
@@ -926,6 +936,7 @@ void RequestCheckpoint()
         return;
     }
     ForceCheckpoint();
+    g_State.inBossAttack = true;
     g_State.autotestBossSeen = true;
     PD_LOG("boss attack started, checkpoint requested");
 }
@@ -938,6 +949,7 @@ void OnBossAttackEnded()
         return;
     }
     ForceCheckpoint();
+    g_State.inBossAttack = false;
     PD_LOG("boss attack ended, checkpoint requested");
 }
 
