@@ -19,8 +19,10 @@ back to the last checkpoint instead of losing a life, as many times as you need.
   - at the start and at the end of every boss and midboss attack (spell
     cards and non-spells), so dying to the enemies after a midboss doesn't
     send you back into its attack,
-  - every 15 seconds during the stage, but only at a calm moment (no bullets
-    close to you, no lasers, no bomb or dialogue in progress).
+  - every 15 seconds outside boss and midboss attacks, but only at a calm
+    moment (no bullets close to you, no lasers, no bomb or dialogue in
+    progress). During an attack there are none, so dying always sends you
+    back to the attack's start.
   "Checkpoint" flashes at the bottom of the play area when one is taken.
 - **When you get hit** the game freezes, the music stops, and it asks:
   - **Continue from checkpoint**: the menu slides away and strips sweep
