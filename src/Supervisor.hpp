@@ -111,6 +111,7 @@ struct Supervisor
     ZunResult PlayMidiFile(i32 midiFileIdx);
     ZunResult PlayAudio(const char *path);
     ZunResult StopAudio();
+    static bool WavMusicAvailable();
     ZunResult FadeOutMusic(f32 fadeOutSeconds);
 
     static ZunResult SetupDInput(Supervisor *s);
