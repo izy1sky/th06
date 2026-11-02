@@ -91,9 +91,11 @@ foreach ($i in 1..17) {
 }
 if ($Music -eq 0) { Write-Host "warning: no bgm\th06_XX.wav or .ogg in $Game, the web version will have no music" -ForegroundColor Yellow }
 
-# play.html fetches every file listed here into the game's in-memory file system. Forward
+# play.html fetches every file listed here into the game's in-memory file system. One
+# "path<TAB>size" per line (the sizes let the loading screen show download progress), forward
 # slashes, \n line endings, UTF-8 without a BOM.
-$Files = Get-ChildItem -Recurse -File $Assets | ForEach-Object { $_.FullName.Substring($Assets.Length + 1) -replace '\\', '/' }
+$Files = Get-ChildItem -Recurse -File $Assets | Where-Object Name -ne "manifest.txt" |
+    ForEach-Object { ($_.FullName.Substring($Assets.Length + 1) -replace '\\', '/') + "`t" + $_.Length }
 $Manifest = (($Files | Sort-Object -CaseSensitive) -join "`n") + "`n"
 [IO.File]::WriteAllText((Join-Path $Assets "manifest.txt"), $Manifest, (New-Object System.Text.UTF8Encoding $false))
 

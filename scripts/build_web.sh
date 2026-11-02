@@ -75,8 +75,17 @@ for i in $(seq -w 1 17); do
 done
 [ "$music" -gt 0 ] || echo "warning: no bgm/th06_XX.wav or .ogg in $GAME, the web version will have no music"
 
-# play.html fetches every file listed here into the game's in-memory file system.
-(cd "$OUT/assets" && find . -type f ! -name manifest.txt | sed 's|^\./||' | LC_ALL=C sort) > "$OUT/assets/manifest.txt"
+# play.html fetches every file listed here into the game's in-memory file system. One
+# "path<TAB>size" per line; the sizes let the loading screen show download progress.
+python3 - "$OUT/assets" <<'EOF'
+import os, sys
+root = sys.argv[1]
+files = sorted(os.path.relpath(os.path.join(d, f), root).replace(os.sep, "/")
+               for d, _, fs in os.walk(root) for f in fs if f != "manifest.txt")
+with open(os.path.join(root, "manifest.txt"), "w", encoding="utf-8", newline="\n") as out:
+    for f in files:
+        out.write(f"{f}\t{os.path.getsize(os.path.join(root, f))}\n")
+EOF
 
 if [ "${DEBUG:-0}" = "1" ]; then
   OPT_FLAGS=(-O0 -g -sASSERTIONS=2 -sSTACK_OVERFLOW_CHECK=2 -sGL_ASSERTIONS=1 -sGL_DEBUG=1)
