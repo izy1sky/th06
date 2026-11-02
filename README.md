@@ -1,118 +1,102 @@
 # th06 with Pointdevice Mode
 
-A playable, portable build of Touhou 6 (Embodiment of Scarlet Devil) for Windows, macOS, Linux and
-the browser, with a TH15-style **Pointdevice Mode**: when you get hit you go back to the last
-checkpoint instead of losing a life. See [POINTDEVICE.md](POINTDEVICE.md) for how it plays and how
-to build it, and [web/README.md](web/README.md) for the browser build.
+Touhou 6 (Embodiment of Scarlet Devil) for Windows, macOS, Linux and the browser, with a
+TH15-style **Pointdevice Mode**: when you get hit you go back to the last checkpoint instead of
+losing a life. [POINTDEVICE.md](POINTDEVICE.md) describes how it plays.
 
-This repository does not include any game data. You need your own copy of the original game's
-`.DAT` files.
+This repository has no game data. You need your own copy of the game (version 1.02h).
 
-## Upstream
+## Your game folder
+
+Every build reads the game's files from one folder, your *game folder*:
+
+| File | Needed |
+|---|---|
+| `紅魔郷CM.DAT`, `紅魔郷ED.DAT`, `紅魔郷IN.DAT`, `紅魔郷MD.DAT`, `紅魔郷ST.DAT`, `紅魔郷TL.DAT` | yes, from your copy of the game |
+| `msgothic.ttc` | yes. On Windows copy it from `C:\Windows\Fonts` (if it isn't there, add the *Japanese Supplemental Fonts* optional feature); a compatible font such as Kochi Gothic renamed to `msgothic.ttc` also works |
+| `bgm\th06_01.wav` … `bgm\th06_17.wav` | for WAV music, from your copy of the game. Without them the desktop builds play MIDI music and the web build has no music |
+| `NotoSansJP-Regular.ttf` | optional, used for characters missing from `msgothic.ttc` |
+
+Settings (`東方紅魔郷.cfg`), `score.dat` and Pointdevice saves are written to this folder too.
+
+## Windows
+
+You need Visual Studio 2022 or 2026 with **Desktop development with C++**. In the repository
+folder, in PowerShell or cmd:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1 -Game C:\games\th06
+```
+
+Replace `C:\games\th06` with your game folder. The first run downloads premake and SDL2 into
+`deps\`. When it finishes, `th06.exe`, `th06_config.exe` and the SDL DLLs are in your game
+folder: run `th06.exe` there. `th06_config.exe` changes the settings outside the game.
+
+## macOS
+
+You need the Xcode command line tools (`xcode-select --install`) and [Homebrew](https://brew.sh).
+
+```bash
+brew install premake sdl2 sdl2_image sdl2_ttf
+premake5 gmake && make -C build config=release
+cp th06 ~/games/th06/
+```
+
+Then run `./th06` from your game folder (`cd ~/games/th06 && ./th06`).
+
+## Linux
+
+```bash
+sudo apt install build-essential libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libasound2-dev
+premake5 gmake && make -C build config=release
+```
+
+Get `premake5` from [premake.github.io](https://premake.github.io/download) (put it on your PATH).
+Copy `th06` to your game folder and run it from there. `premake5 gmake --no-asoundlib` builds without MIDI music and without `libasound`.
+
+## Web
+
+The browser version is built with [emsdk](https://emscripten.org/docs/getting_started/downloads.html)
+and needs Python 3. If your music is WAV, it is converted to OGG once, which needs `ffmpeg` with
+libvorbis (on macOS, `brew install vorbis-tools` also works).
+
+Windows, in the repository folder:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\build_web.ps1 -Game C:\games\th06 -Emsdk C:\emsdk
+```
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\serve_web.ps1
+```
+
+macOS and Linux:
+
+```bash
+source ~/emsdk/emsdk_env.sh
+scripts/build_web.sh ~/games/th06
+```
+
+```bash
+python3 -m http.server -d dist 8000
+```
+
+Then open <http://localhost:8000/>. The whole site is in `dist/`; to put it online, upload
+everything in that folder. Every file in it is under 20 MB.
+
+**Controls:** arrow keys move, Z shoots, X bombs, Shift moves slowly, Esc pauses, Shift+Enter
+switches full screen. Click the game once before using the keyboard. On a touch screen, on-screen
+buttons appear: a stick at the bottom left, shoot, bomb and slow at the bottom right, and confirm
+and menu at the top right.
+
+## Where this comes from
 
 This repository was forked from [GensokyoClub/th06](https://github.com/GensokyoClub/th06), the
 Touhou 6 decompilation, and is built on its
-[`portable` branch](https://github.com/GensokyoClub/th06/tree/portable) (EoSD-portable), which ports
-the decompiled game to SDL2 and OpenGL. It is no longer linked to that repository on GitHub and
-doesn't send changes back to it. All of the game code, the portable renderer and the build setup
-come from that project and its contributors; this repository adds on top of it:
+[`portable` branch](https://github.com/GensokyoClub/th06/tree/portable) (EoSD-portable), which
+ports the decompiled game to SDL2 and OpenGL. All of the game code, the renderer and the premake
+setup come from that project and its contributors. This repository adds the browser build,
+Pointdevice Mode, touch controls and the build scripts in `scripts/`. Changes from upstream
+`portable` are merged in from time to time.
 
-- a browser (WebAssembly) build with OGG music,
-- Pointdevice Mode, with its menus, checkpoint saves and music rewind,
-- touch controls and Windows build scripts for the web version.
-
-Changes from upstream `portable` are merged in from time to time. Upstream's `master` branch is the
-byte-matching decompilation of the original Windows executable and isn't merged here. Like the
-upstream port, this repository is licensed under the GPLv3 (see [LICENSE](LICENSE)).
-
----
-
-The rest of this file is the upstream EoSD-portable readme.
-
-[![Discord][discord-badge]][discord] <- click here to join discord server.
-
-[discord]: https://discord.gg/VyGwAjrh9a
-[discord-badge]: https://img.shields.io/discord/1147558514840064030?color=%237289DA&logo=discord&logoColor=%23FFFFFF
-
-This is the readme for the portable fork of EoSD. For the readme of the decomp project, see [here](https://github.com/GensokyoClub/th06/blob/master/README.md).
-
-EoSD-portable is a port of Touhou 6 using SDL2 and OpenGL (with a more general renderer abstraction layer hopefully on the way).
-This enables theoretical portability to any system supported by SDL2, with Linux, Windows, and macOS in particular being known to work.
-Builds for the BSDs and other Unices are also almost certainly possible, but may require some slight modifications to the build system.
-
-### Platform Requirements
-
-- SDL2, SDL2-image, and SDL2-ttf support
-- C++20 standard library support
-- A little endian architecture (though big endian support is currently being worked on)
-- OpenGL ES 1.1, OpenGL 1.3, or GL 2.1 / GL ES 2.0 / WebGL support
-
-### Dependencies
-
-EoSD-portable has the following dependencies:
-
-- `SDL2`
-- `SDL2_image`
-- `SDL2_ttf`
-- `libasound` (Optional and Linux-only, enables MIDI support. This will almost always be present as part of a desktop distro.)
-
-On Windows and macOS, MIDI support uses the system APIs and needs no extra dependencies.
-
-In addition, building uses [`premake5`](https://premake.github.io/download) and a compiler that supports C++20.
-
-#### Building
-
-In the repository root directory, run `premake5` with the desired build system as an argument (a list can be seen by running `premake5 --help`).
-This will output the build files to the `build` directory, and then compilation may be done with the desired build system.
-
-##### Build Options (Use with Premake Invocation)
-`--no-asoundlib`: On Linux, doesn't build MIDI support. Removes libasound as a dev and runtime dependency
-`--use-c23-embed`: Uses `#embed` for resource inclusion instead of a lua script in the Premake file.
-
-##### Build Example (Debian-based Linux)
-
-Obtain dependencies:
-
-`sudo apt install build-essential libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libasound2-dev`
-
-Generate makefile:
-
-`premake5 gmake`
-
-Compile:
-
-`cd build && make -j16`
-
-##### Build Example (macOS)
-
-Install the Xcode Command Line Tools (provides the compiler), if not already present:
-
-`xcode-select --install`
-
-Obtain dependencies (using [Homebrew](https://brew.sh)):
-
-`brew install premake sdl2 sdl2_image sdl2_ttf`
-
-Generate makefile:
-
-`premake5 gmake`
-
-Compile:
-
-`cd build && make -j16`
-
-### Use
-
-EoSD-portable is designed to be a drop-in replacement for the vanilla EoSD binary.
-You will also need to add a font to your game directory with the filename `msgothic.ttc`.
-This may be the actual MS Gothic, taken from a Windows machine, or a compatible font such as Kochi Gothic.
-EoSD-portable uses the Japanese filenames (e.g. 紅魔郷CM.DAT, 東方紅魔郷.cfg). English and other patches, static or thcrap, do not currently work.
-A Japanese locale is not required.
-
-# Decomp Credits
-
-We would like to extend our thanks to the following individuals for their
-invaluable contributions:
-
-- @EstexNT for porting the [`var_order` pragma](scripts/pragma_var_order.cpp) to
-  MSVC7.
+Like the upstream port, this repository is licensed under the GPLv3 (see [LICENSE](LICENSE)).
