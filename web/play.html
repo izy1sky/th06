@@ -313,22 +313,16 @@
       showStep(left ? '正在启动引擎…' : '正在初始化游戏…', null, '');
     },
     // Assets are NOT bundled (the combined .data would exceed the 20MB per-file
-    // limit). Fetch each file listed in assets/manifest.txt ("path<TAB>size" per line)
-    // and write it into MEMFS before main() runs. addRunDependency blocks startup until
-    // all are loaded.
+    // limit). Fetch each file listed in assets/manifest.js ({file, url, size} entries:
+    // url is where it is served, file the name the game opens) and write it into MEMFS
+    // before main() runs. addRunDependency blocks startup until all are loaded.
     preRun: [function () {
       addRunDependency('fetch-assets');
       (async () => {
         let timer = 0;
         try {
-          const resp = await fetch('assets/manifest.txt');
-          if (!resp.ok) throw new Error('fetch manifest.txt -> HTTP ' + resp.status);
-          const files = (await resp.text()).split('\n').map(s => s.trim())
-            .filter(s => s && s !== 'manifest.txt')
-            .map(line => {
-              const [path, size] = line.split('\t');
-              return { path, size: Number(size) || 0 };
-            });
+          if (typeof TH06_ASSETS === 'undefined') throw new Error('assets/manifest.js is missing');
+          const files = TH06_ASSETS;
           const total = files.reduce((n, f) => n + f.size, 0);
           console.log('[assets] manifest has', files.length, 'files,', mb(total), 'MB');
           if (total) {
@@ -356,12 +350,12 @@
 
           // Reads one file, counting bytes as they arrive so the bar moves during the big
           // files too. Retries twice; a failed attempt takes its bytes back off the count.
-          async function download(rel) {
+          async function download(url) {
             for (let attempt = 1; ; attempt++) {
               let got = 0;
               try {
-                const resp = await fetch('assets/' + rel);
-                if (!resp.ok) throw new Error('fetch ' + rel + ' -> HTTP ' + resp.status);
+                const resp = await fetch('assets/' + url);
+                if (!resp.ok) throw new Error('fetch ' + url + ' -> HTTP ' + resp.status);
                 if (!resp.body) {
                   const buf = new Uint8Array(await resp.arrayBuffer());
                   loaded += buf.length;
@@ -384,7 +378,7 @@
               } catch (e) {
                 loaded -= got;
                 if (attempt >= 3) throw e;
-                console.warn('[assets] retrying', rel, e);
+                console.warn('[assets] retrying', url, e);
                 await new Promise(r => setTimeout(r, 1000 * attempt));
               }
             }
@@ -394,8 +388,8 @@
           let next = 0;
           async function worker() {
             while (next < files.length) {
-              const rel = files[next++].path;
-              const buf = await download(rel);
+              const { file: rel, url } = files[next++];
+              const buf = await download(url);
               const parts = rel.split('/');
               let dir = '';
               for (let i = 0; i < parts.length - 1; i++) {
@@ -566,6 +560,7 @@
     stick.addEventListener('pointercancel', stickEnd);
   })();
 </script>
+<script src="assets/manifest.js" charset="utf-8"></script>
 <script async src="th06.js"></script>
 </body>
 </html>
