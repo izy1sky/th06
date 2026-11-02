@@ -75,8 +75,29 @@ for i in $(seq -w 1 17); do
 done
 [ "$music" -gt 0 ] || echo "warning: no bgm/th06_XX.wav or .ogg in $GAME, the web version will have no music"
 
-# play.html fetches every file listed here into the game's in-memory file system.
-(cd "$OUT/assets" && find . -type f ! -name manifest.txt | sed 's|^\./||' | LC_ALL=C sort) > "$OUT/assets/manifest.txt"
+# play.html fetches every file listed in assets/manifest.js into the game's in-memory file
+# system; the sizes let the loading screen show download progress. Bilibili Toy drops files of
+# some types from an upload (.ttc, .txt), so those are stored with .dat added to the name and
+# written back under their own name in the browser.
+python3 - "$OUT/assets" <<'EOF'
+import json, os, sys
+root = sys.argv[1]
+entries = []
+for d, _, fs in os.walk(root):
+    for f in fs:
+        if f == "manifest.js":
+            continue
+        name = os.path.relpath(os.path.join(d, f), root).replace(os.sep, "/")
+        url = name + ".dat" if name.lower().endswith((".ttc", ".txt")) else name
+        if url != name:
+            os.replace(os.path.join(root, name), os.path.join(root, url))
+        entries.append({"file": name, "url": url, "size": os.path.getsize(os.path.join(root, url))})
+entries.sort(key=lambda e: e["file"])
+with open(os.path.join(root, "manifest.js"), "w", encoding="utf-8", newline="\n") as out:
+    out.write("var TH06_ASSETS = [\n")
+    out.write(",\n".join("  " + json.dumps(e, ensure_ascii=False) for e in entries))
+    out.write("\n];\n")
+EOF
 
 if [ "${DEBUG:-0}" = "1" ]; then
   OPT_FLAGS=(-O0 -g -sASSERTIONS=2 -sSTACK_OVERFLOW_CHECK=2 -sGL_ASSERTIONS=1 -sGL_DEBUG=1)

@@ -30,13 +30,79 @@
     image-rendering: pixelated;
     outline: none;
   }
-  #status {
+  /* Loading screen: covers the black canvas until the game draws its first frame, so a slow
+     download doesn't look like a broken page. */
+  #loader {
     position: absolute;
-    top: 8px; left: 0; right: 0;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, #2a0508 0%, #000 70%);
+    transition: opacity 0.5s;
+  }
+  #loader.gone { opacity: 0; pointer-events: none; }
+  .ld-box {
+    width: min(420px, calc(100vw - 32px));
     text-align: center;
-    font-size: 13px;
-    color: #888;
-    pointer-events: none;
+  }
+  .ld-title {
+    font-size: 30px;
+    letter-spacing: 0.12em;
+    color: #f2d7d9;
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", serif;
+  }
+  .ld-sub {
+    margin-top: 4px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: #9a6a70;
+  }
+  .ld-bar {
+    position: relative;
+    margin: 28px 0 12px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+  }
+  #ld-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #a3121f, #e8424f);
+    transition: width 0.25s;
+  }
+  /* No measurable progress (engine start-up, first frame): a sliding band instead. */
+  .ld-bar.busy #ld-fill {
+    width: 30%;
+    animation: ld-slide 1.2s ease-in-out infinite;
+  }
+  @keyframes ld-slide {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(340%); }
+  }
+  #ld-step { font-size: 15px; color: #e6e6e6; }
+  #ld-detail {
+    margin-top: 6px;
+    min-height: 1.4em;
+    font-size: 12px;
+    color: #999;
+    font-variant-numeric: tabular-nums;
+  }
+  #ld-note { margin-top: 18px; font-size: 12px; color: #777; line-height: 1.6; }
+  #loader.error #ld-step { color: #ff8a8a; }
+  #ld-retry {
+    margin-top: 16px;
+    padding: 8px 22px;
+    font: inherit;
+    font-size: 14px;
+    color: #fff;
+    background: #a3121f;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
   }
   #hint {
     position: absolute;
@@ -116,7 +182,17 @@
 </head>
 <body>
 <div id="wrap">
-  <div id="status">Loading…</div>
+  <div id="loader">
+    <div class="ld-box">
+      <div class="ld-title">東方紅魔郷</div>
+      <div class="ld-sub">the Embodiment of Scarlet Devil</div>
+      <div class="ld-bar busy"><div id="ld-fill"></div></div>
+      <div id="ld-step">正在连接…</div>
+      <div id="ld-detail"></div>
+      <div id="ld-note">首次打开需要下载游戏数据，网速慢时要等一会儿，页面没有卡住。</div>
+      <button id="ld-retry" hidden onclick="location.reload()">重新加载</button>
+    </div>
+  </div>
   <canvas id="canvas" width="640" height="480" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
   <div id="hint">方向键移动 · Z 射击 · X 炸弹 · Shift 低速 · Shift+Enter 切换全屏 · 点击画面后键盘生效</div>
 
@@ -135,7 +211,6 @@
   </div>
 </div>
 <script>
-  const statusEl = document.getElementById('status');
   const hintEl = document.getElementById('hint');
   const canvas = document.getElementById('canvas');
   const wrap = document.getElementById('wrap');
@@ -152,6 +227,37 @@
   window.addEventListener('resize', fitCanvas);
   fitCanvas();
 
+  // ---- Loading screen --------------------------------------------------------
+  const loaderEl = document.getElementById('loader');
+  const loader = {
+    bar: loaderEl.querySelector('.ld-bar'),
+    fill: document.getElementById('ld-fill'),
+    step: document.getElementById('ld-step'),
+    detail: document.getElementById('ld-detail'),
+    note: document.getElementById('ld-note'),
+    retry: document.getElementById('ld-retry'),
+  };
+  const mb = (bytes) => (bytes / 1048576).toFixed(1);
+  // fraction in 0..1 fills the bar; null shows the sliding "busy" band.
+  function showStep(text, fraction, detail) {
+    if (loaderEl.classList.contains('error')) return;
+    loader.step.textContent = text;
+    loader.bar.classList.toggle('busy', fraction == null);
+    loader.fill.style.width = fraction == null ? '' : (fraction * 100).toFixed(1) + '%';
+    if (detail !== undefined) loader.detail.textContent = detail;
+  }
+  function showError(text) {
+    showStep(text, 0, '');
+    loaderEl.classList.add('error');
+    loaderEl.classList.remove('gone');
+    loader.note.textContent = '可能是网络中断。点下面的按钮重试，问题还在的话按 F12 看 Console 里的报错。';
+    loader.retry.hidden = false;
+  }
+  function hideLoader() {
+    loaderEl.classList.add('gone');
+    setTimeout(() => { loaderEl.style.display = 'none'; }, 600);
+  }
+
   // Low-latency rendering: force the WebGL context to be created with
   // `desynchronized: true`, which bypasses the browser's compositor queue and
   // sends frames closer to straight-to-display (the browser-equivalent of
@@ -164,13 +270,13 @@
   // decoding the DAT archives, compiling shaders and loading the title logo — all
   // before anything is drawn. Hiding the status text the instant assets are ready
   // (as monitorRunDependencies does) leaves a blank black screen during that gap.
-  // Instead we keep a status message up until the first glDrawArrays call, which
+  // Instead we keep the loading screen up until the first glDrawArrays call, which
   // is the game actually painting its first frame.
   let firstFrameSeen = false;
   function onFirstFrame() {
     if (firstFrameSeen) return;
     firstFrameSeen = true;
-    Module.setStatus('');
+    hideLoader();
   }
   (function patchGetContext() {
     const orig = HTMLCanvasElement.prototype.getContext;
@@ -196,70 +302,125 @@
     canvas: canvas,
     print: (...args) => console.log(...args),
     printErr: (...args) => console.warn(...args),
-    setStatus: (text) => {
-      statusEl.textContent = text || '';
-      if (text) {
-        statusEl.style.display = '';
-      } else {
-        setTimeout(() => { statusEl.style.display = 'none'; }, 1500);
-      }
-    },
-    totalDependencies: 0,
+    // The runtime's own status texts ("Running..." and so on) would overwrite the loading
+    // screen's steps, so they only go to the console.
+    setStatus: (text) => { if (text) console.log('[status]', text); },
+    assetsLoaded: false,
     monitorRunDependencies: function (left) {
-      this.totalDependencies = Math.max(this.totalDependencies, left);
-      // Don't blank the status when deps hit 0 — the game still has to decode
-      // archives and build its first frame. Show an "initializing" message and
-      // let onFirstFrame() clear it once something is actually drawn.
-      Module.setStatus(left ? `准备资源 (${this.totalDependencies - left}/${this.totalDependencies})` : '初始化中…');
+      // Once the assets are in, the game still has to finish downloading the engine, decode
+      // the archives and build its first frame; onFirstFrame() hides the loading screen.
+      if (!this.assetsLoaded) return;
+      showStep(left ? '正在启动引擎…' : '正在初始化游戏…', null, '');
     },
     // Assets are NOT bundled (the combined .data would exceed the 20MB per-file
-    // limit). Fetch each file listed in assets/manifest.txt and write it into MEMFS
+    // limit). Fetch each file listed in assets/manifest.js ({file, url, size} entries:
+    // url is where it is served, file the name the game opens) and write it into MEMFS
     // before main() runs. addRunDependency blocks startup until all are loaded.
     preRun: [function () {
       addRunDependency('fetch-assets');
       (async () => {
+        let timer = 0;
         try {
-          console.log('[assets] preRun start, fetching manifest…');
-          const manifest = await (await fetch('assets/manifest.txt')).text();
-          const files = manifest.split('\n').map(s => s.trim())
-            .filter(s => s && s !== 'manifest.txt');
-          console.log('[assets] manifest has', files.length, 'files');
-          let done = 0;
-          for (const rel of files) {
-            const resp = await fetch('assets/' + rel);
-            if (!resp.ok) throw new Error('fetch ' + rel + ' -> HTTP ' + resp.status);
-            const buf = new Uint8Array(await resp.arrayBuffer());
-            const parts = rel.split('/');
-            let dir = '';
-            for (let i = 0; i < parts.length - 1; i++) {
-              dir += parts[i];
-              try { FS.mkdir('/' + dir); } catch (e) { /* exists */ }
-              dir += '/';
-            }
-            FS.writeFile('/' + rel, buf);
-            done++;
-            Module.setStatus(`加载资源 ${done}/${files.length}`);
+          if (typeof TH06_ASSETS === 'undefined') throw new Error('assets/manifest.js is missing');
+          const files = TH06_ASSETS;
+          const total = files.reduce((n, f) => n + f.size, 0);
+          console.log('[assets] manifest has', files.length, 'files,', mb(total), 'MB');
+          if (total) {
+            loader.note.textContent =
+              `首次打开需要下载约 ${Math.ceil(total / 1048576)} MB 游戏数据，网速慢时要等一会儿，页面没有卡住。`;
           }
-          console.log('[assets] all', done, 'files written to MEMFS');
-          // sanity: confirm a key archive is present and non-empty
-          try {
-            const st = FS.stat('/紅魔郷CM.DAT');
-            console.log('[assets] /紅魔郷CM.DAT size =', st.size);
-          } catch (e) { console.error('[assets] DAT missing after write!', e); }
-        } catch (e) {
-          console.error('[assets] load failed:', e);
-          Module.setStatus('资源加载失败，请看 Console');
-        } finally {
-          console.log('[assets] removeRunDependency -> game will start');
+
+          let loaded = 0, filesDone = 0;
+          let lastLoaded = 0, lastTick = performance.now(), speed = 0;
+          const update = () => {
+            const fraction = total ? Math.min(loaded / total, 1) : filesDone / files.length;
+            let detail = total ? `${mb(loaded)} / ${mb(total)} MB` : `${filesDone} / ${files.length}`;
+            if (speed > 0) detail += ` · ${mb(speed)} MB/s`;
+            showStep(`正在下载游戏数据 ${Math.floor(fraction * 100)}%`, fraction, detail);
+          };
+          timer = setInterval(() => {
+            const now = performance.now();
+            const recent = (loaded - lastLoaded) / ((now - lastTick) / 1000);
+            speed = speed ? speed * 0.6 + recent * 0.4 : recent;
+            lastLoaded = loaded;
+            lastTick = now;
+            update();
+          }, 1000);
+          update();
+
+          // Reads one file, counting bytes as they arrive so the bar moves during the big
+          // files too. Retries twice; a failed attempt takes its bytes back off the count.
+          async function download(url) {
+            for (let attempt = 1; ; attempt++) {
+              let got = 0;
+              try {
+                const resp = await fetch('assets/' + url);
+                if (!resp.ok) throw new Error('fetch ' + url + ' -> HTTP ' + resp.status);
+                if (!resp.body) {
+                  const buf = new Uint8Array(await resp.arrayBuffer());
+                  loaded += buf.length;
+                  return buf;
+                }
+                const reader = resp.body.getReader();
+                const chunks = [];
+                for (;;) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  chunks.push(value);
+                  got += value.length;
+                  loaded += value.length;
+                  update();
+                }
+                const buf = new Uint8Array(got);
+                let at = 0;
+                for (const c of chunks) { buf.set(c, at); at += c.length; }
+                return buf;
+              } catch (e) {
+                loaded -= got;
+                if (attempt >= 3) throw e;
+                console.warn('[assets] retrying', url, e);
+                await new Promise(r => setTimeout(r, 1000 * attempt));
+              }
+            }
+          }
+
+          // A few downloads at once: faster than one after another on most connections.
+          let next = 0;
+          async function worker() {
+            while (next < files.length) {
+              const { file: rel, url } = files[next++];
+              const buf = await download(url);
+              const parts = rel.split('/');
+              let dir = '';
+              for (let i = 0; i < parts.length - 1; i++) {
+                dir += parts[i];
+                try { FS.mkdir('/' + dir); } catch (e) { /* exists */ }
+                dir += '/';
+              }
+              FS.writeFile('/' + rel, buf);
+              filesDone++;
+            }
+          }
+          await Promise.all(Array.from({ length: 4 }, worker));
+          clearInterval(timer);
+          console.log('[assets] all', filesDone, 'files written to MEMFS');
+          Module.assetsLoaded = true;
+          showStep('正在启动引擎…', null, '');
           removeRunDependency('fetch-assets');
+        } catch (e) {
+          clearInterval(timer);
+          console.error('[assets] load failed:', e);
+          // The game can't run without its files, so it stays stopped here.
+          showError('游戏数据下载失败');
         }
       })();
     }],
     // The GL backend resizes the drawing buffer to 640x480; keep CSS fit after that.
     onRuntimeInitialized: () => setTimeout(fitCanvas, 0),
   };
-  Module.setStatus('Downloading…');
-  window.onerror = () => { Module.setStatus('运行出错，请看 Console'); };
+  // Before the first frame an error means the game won't start; afterwards it stays in the
+  // console rather than covering the game.
+  window.onerror = () => { if (!firstFrameSeen) showError('游戏启动出错'); };
 
   // Keep keyboard focus on the canvas so the game receives input.
   canvas.addEventListener('click', () => canvas.focus());
@@ -399,6 +560,7 @@
     stick.addEventListener('pointercancel', stickEnd);
   })();
 </script>
+<script src="assets/manifest.js" charset="utf-8"></script>
 <script async src="th06.js"></script>
 </body>
 </html>

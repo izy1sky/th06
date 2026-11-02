@@ -91,11 +91,22 @@ foreach ($i in 1..17) {
 }
 if ($Music -eq 0) { Write-Host "warning: no bgm\th06_XX.wav or .ogg in $Game, the web version will have no music" -ForegroundColor Yellow }
 
-# play.html fetches every file listed here into the game's in-memory file system. Forward
-# slashes, \n line endings, UTF-8 without a BOM.
-$Files = Get-ChildItem -Recurse -File $Assets | ForEach-Object { $_.FullName.Substring($Assets.Length + 1) -replace '\\', '/' }
-$Manifest = (($Files | Sort-Object -CaseSensitive) -join "`n") + "`n"
-[IO.File]::WriteAllText((Join-Path $Assets "manifest.txt"), $Manifest, (New-Object System.Text.UTF8Encoding $false))
+# play.html fetches every file listed in assets\manifest.js into the game's in-memory file
+# system; the sizes let the loading screen show download progress. Bilibili Toy drops files of
+# some types from an upload (.ttc, .txt), so those are stored with .dat added to the name and
+# written back under their own name in the browser. Forward slashes, \n line endings, UTF-8
+# without a BOM.
+$Entries = Get-ChildItem -Recurse -File $Assets | Where-Object Name -ne "manifest.js" | ForEach-Object {
+    $name = $_.FullName.Substring($Assets.Length + 1) -replace '\\', '/'
+    $url = $name
+    if ($_.Extension -in ".ttc", ".txt") {
+        $url = "$name.dat"
+        Move-Item -Force $_.FullName "$($_.FullName).dat"
+    }
+    [pscustomobject]@{ File = $name; Line = "  {""file"": ""$name"", ""url"": ""$url"", ""size"": $($_.Length)}" }
+}
+$Manifest = "var TH06_ASSETS = [`n" + (($Entries | Sort-Object File -CaseSensitive | ForEach-Object Line) -join ",`n") + "`n];`n"
+[IO.File]::WriteAllText((Join-Path $Assets "manifest.js"), $Manifest, (New-Object System.Text.UTF8Encoding $false))
 
 if ($DebugBuild) {
     $OptFlags = "-O0", "-g", "-sASSERTIONS=2", "-sSTACK_OVERFLOW_CHECK=2", "-sGL_ASSERTIONS=1", "-sGL_DEBUG=1"
